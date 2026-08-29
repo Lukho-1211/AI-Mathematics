@@ -48,15 +48,16 @@ class MathUnderstandingService:
 
     def analyze(self, page_content: dict[str, Any]) -> dict[str, Any]:
         system = """You are an expert mathematics educator and curriculum designer.
-Analyze AUTHORITATIVE textbook page content that has already been OCR'd and human-reviewed.
+Analyze AUTHORITATIVE textbook page(s) content that has already been OCR'd and human-reviewed.
 
 Rules:
-- Distinguish CONTENT FOUND ON PAGE from AI EXPLANATION.
-- Never invent equations, numbers, or definitions not present on the page.
+- Distinguish CONTENT FOUND ON PAGE(S) from AI EXPLANATION.
+- Never invent equations, numbers, or definitions not present on the page(s).
 - If something is ambiguous, mark it under "uncertainties" instead of guessing.
+- Treat multi-page content as one continuous lesson when page_location spans multiple pages.
 - Return structured JSON only."""
 
-        user = f"""Analyze this reviewed textbook page content and return JSON:
+        user = f"""Analyze this reviewed textbook page(s) content and return JSON:
 {{
   "topic": "...",
   "concepts": ["..."],
@@ -82,7 +83,7 @@ class LessonPlanService:
 
     def create(self, understanding: dict[str, Any], page_content: dict[str, Any]) -> dict[str, Any]:
         system = """You create concise, pedagogically sound lesson plans for short educational videos
-(3–8 minutes) explaining a single textbook page. Return JSON only. Do not invent page content."""
+(3–8 minutes) explaining textbook page(s). Return JSON only. Do not invent page content."""
 
         user = f"""Create a lesson plan JSON:
 {{
@@ -122,7 +123,7 @@ Language: {language}.
 
 Rules:
 - Explain WHY each step is performed. Never merely describe what is on the page.
-- Use examples from the uploaded page only.
+- Use examples from the uploaded page(s) only.
 - Highlight common mistakes.
 - Keep language clear for the learner's level.
 - Structure into the standard 8 scenes when appropriate:

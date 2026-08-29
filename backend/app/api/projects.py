@@ -31,6 +31,7 @@ from app.schemas import (
     JobOut,
     VideoAssetOut,
     SubtitleAssetOut,
+    UploadedPageOut,
 )
 from app.services.storage import get_storage
 from app.core.config import get_settings
@@ -51,10 +52,20 @@ def get_or_create_default_user(db: Session) -> User:
 
 def serialize_project(db: Session, project: Project) -> ProjectDetail:
     storage = get_storage()
+    uploaded_files = sorted(
+        project.uploaded_files,
+        key=lambda u: (u.created_at is None, u.created_at),
+    )
     uploaded_url = None
-    if project.uploaded_files:
-        key = project.uploaded_files[0].processed_storage_key or project.uploaded_files[0].storage_key
-        uploaded_url = storage.presigned_url(key)
+    uploaded_pages: list[UploadedPageOut] = []
+    for uf in uploaded_files:
+        key = uf.processed_storage_key or uf.storage_key
+        url = storage.presigned_url(key)
+        uploaded_pages.append(
+            UploadedPageOut(filename=uf.original_filename, url=url)
+        )
+    if uploaded_pages:
+        uploaded_url = uploaded_pages[0].url
 
     videos = []
     for v in project.video_assets:
@@ -101,6 +112,7 @@ def serialize_project(db: Session, project: Project) -> ProjectDetail:
         created_at=project.created_at,
         updated_at=project.updated_at,
         uploaded_page_url=uploaded_url,
+        uploaded_pages=uploaded_pages,
         expressions=[MathExpressionOut.model_validate(e) for e in project.math_expressions],
         lesson_plan=lesson,
         script=script,
@@ -126,7 +138,11 @@ def list_projects(db: Session = Depends(get_db)) -> list[ProjectSummary]:
     for p in projects:
         thumb = None
         if p.uploaded_files:
-            key = p.uploaded_files[0].processed_storage_key or p.uploaded_files[0].storage_key
+            first = sorted(
+                p.uploaded_files,
+                key=lambda u: (u.created_at is None, u.created_at),
+            )[0]
+            key = first.processed_storage_key or first.storage_key
             thumb = storage.presigned_url(key)
         out.append(
             ProjectSummary(

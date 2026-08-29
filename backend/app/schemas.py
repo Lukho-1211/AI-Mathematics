@@ -147,6 +147,11 @@ class ProjectSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UploadedPageOut(BaseModel):
+    filename: str
+    url: str
+
+
 class ProjectDetail(BaseModel):
     id: UUID
     title: str
@@ -162,6 +167,7 @@ class ProjectDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     uploaded_page_url: Optional[str] = None
+    uploaded_pages: list[UploadedPageOut] = Field(default_factory=list)
     expressions: list[MathExpressionOut] = Field(default_factory=list)
     lesson_plan: Optional[LessonPlanOut] = None
     script: Optional[ScriptOut] = None

@@ -175,39 +175,81 @@ def run_ocr(self, project_id: str) -> dict[str, Any]:
         project = db.get(Project, UUID(project_id))
         if not project:
             raise ValueError("Project not found")
-        _set_job(db, project.id, JobStage.OCR, JobStatus.RUNNING, 5, "Reading textbook page")
+        _set_job(db, project.id, JobStage.OCR, JobStatus.RUNNING, 5, "Reading textbook page(s)")
         _update_project(
             db, project, status=ProjectStatus.PROCESSING, percent=5, stage="OCR", error=None
         )
 
         storage = get_storage()
-        uploaded = project.uploaded_files[0] if project.uploaded_files else None
-        if not uploaded or not uploaded.processed_storage_key:
+        uploaded_files = sorted(
+            [u for u in project.uploaded_files if u.processed_storage_key],
+            key=lambda u: (u.created_at is None, u.created_at),
+        )
+        if not uploaded_files:
             raise RuntimeError("No processed upload found for OCR")
 
-        image_bytes = storage.download_bytes(uploaded.processed_storage_key)
         ocr = OCRService()
-        result = ocr.extract(image_bytes)
+        page_results: list[dict[str, Any]] = []
+        full_text_parts: list[str] = []
+        all_elements: list[tuple[int, dict[str, Any]]] = []
+        topic_guess: str | None = None
+
+        for page_idx, uploaded in enumerate(uploaded_files, start=1):
+            pct = 5 + int(80 * ((page_idx - 1) / max(1, len(uploaded_files))))
+            _set_job(
+                db,
+                project.id,
+                JobStage.OCR,
+                JobStatus.RUNNING,
+                pct,
+                f"Reading textbook page {page_idx}/{len(uploaded_files)}",
+            )
+            image_bytes = storage.download_bytes(uploaded.processed_storage_key)
+            result = ocr.extract(image_bytes)
+            page_results.append(result)
+            text = (result.get("full_text") or "").strip()
+            if text:
+                if len(uploaded_files) > 1:
+                    full_text_parts.append(f"--- Page {page_idx} ---\n{text}")
+                else:
+                    full_text_parts.append(text)
+            if not topic_guess and result.get("topic_guess"):
+                topic_guess = result["topic_guess"]
+            for el in result.get("elements") or []:
+                all_elements.append((page_idx, el))
 
         # Persist OCR + expressions (replace previous)
         db.query(MathExpression).filter(MathExpression.project_id == project.id).delete()
         db.query(OCRResult).filter(OCRResult.project_id == project.id).delete()
         db.commit()
 
+        merged = {
+            "pages": page_results,
+            "page_count": len(uploaded_files),
+            "full_text": "\n\n".join(full_text_parts),
+            "topic_guess": topic_guess,
+            "elements": [
+                {**el, "page_index": page_idx} for page_idx, el in all_elements
+            ],
+        }
+
         ocr_row = OCRResult(
             project_id=project.id,
-            raw_response=result,
-            full_text=result.get("full_text") or "",
+            raw_response=merged,
+            full_text=merged["full_text"],
             reviewed=False,
         )
         db.add(ocr_row)
 
-        if result.get("topic_guess") and (
-            not project.title or project.title == "Untitled Lesson"
-        ):
-            project.title = result["topic_guess"]
+        if topic_guess and (not project.title or project.title == "Untitled Lesson"):
+            project.title = topic_guess
 
-        for i, el in enumerate(result.get("elements") or []):
+        for i, (page_idx, el) in enumerate(all_elements):
+            loc = (el.get("page_location") or "").strip()
+            if len(uploaded_files) > 1:
+                page_location = f"page {page_idx} / {loc}" if loc else f"page {page_idx}"
+            else:
+                page_location = loc or None
             db.add(
                 MathExpression(
                     project_id=project.id,
@@ -215,7 +257,7 @@ def run_ocr(self, project_id: str) -> dict[str, Any]:
                     original_text=el.get("original_text") or "",
                     latex=el.get("latex"),
                     bbox=el.get("bbox"),
-                    page_location=el.get("page_location"),
+                    page_location=page_location,
                     confidence=float(el.get("confidence") or 0.5),
                     needs_review=bool(el.get("needs_review")),
                     order_index=i,
@@ -228,7 +270,7 @@ def run_ocr(self, project_id: str) -> dict[str, Any]:
         key = storage.project_key(project.id, "ocr", "result.json")
         import json
 
-        storage.upload_bytes(key, json.dumps(result, indent=2).encode("utf-8"), "application/json")
+        storage.upload_bytes(key, json.dumps(merged, indent=2).encode("utf-8"), "application/json")
 
         _set_job(db, project.id, JobStage.OCR, JobStatus.COMPLETED, 100, "OCR complete")
         _update_project(
@@ -238,7 +280,7 @@ def run_ocr(self, project_id: str) -> dict[str, Any]:
             percent=15,
             stage="REVIEW",
         )
-        return {"project_id": project_id, "elements": len(result.get("elements") or [])}
+        return {"project_id": project_id, "elements": len(all_elements), "pages": len(uploaded_files)}
     except Exception as exc:
         logger.exception("OCR failed for %s", project_id)
         project = db.get(Project, UUID(project_id))
@@ -459,9 +501,13 @@ def generate_video(self, project_id: str) -> dict[str, Any]:
             ).delete()
             db.commit()
 
-            # Download textbook image for page overview scenes
+            # Download first textbook image for page overview scenes
             textbook_path: Optional[Path] = None
-            uploaded = project.uploaded_files[0] if project.uploaded_files else None
+            uploaded_sorted = sorted(
+                [u for u in project.uploaded_files if u.processed_storage_key],
+                key=lambda u: (u.created_at is None, u.created_at),
+            )
+            uploaded = uploaded_sorted[0] if uploaded_sorted else None
             if uploaded and uploaded.processed_storage_key:
                 textbook_path = tmp_path / "textbook.png"
                 storage.download_file(uploaded.processed_storage_key, str(textbook_path))

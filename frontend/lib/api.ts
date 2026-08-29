@@ -21,6 +21,7 @@ export interface MathExpression {
   original_text: string;
   latex?: string | null;
   bbox?: { x: number; y: number; width: number; height: number } | null;
+  page_location?: string | null;
   confidence: number;
   needs_review: boolean;
   user_corrected: boolean;
@@ -69,6 +70,7 @@ export interface ProjectDetail {
   created_at: string;
   updated_at: string;
   uploaded_page_url?: string | null;
+  uploaded_pages?: Array<{ filename: string; url: string }>;
   expressions: MathExpression[];
   lesson_plan?: {
     topic: string;
@@ -148,12 +150,18 @@ export const api = {
   upload: async (
     id: string,
     file: File,
-    opts: { rotation?: number; page_number?: number; crop?: object | null }
+    opts: {
+      rotation?: number;
+      page_number?: number;
+      crop?: object | null;
+      replace?: boolean;
+    }
   ) => {
     const form = new FormData();
     form.append("file", file);
     form.append("rotation", String(opts.rotation ?? 0));
     form.append("page_number", String(opts.page_number ?? 1));
+    form.append("replace", String(opts.replace ?? true));
     if (opts.crop) form.append("crop_json", JSON.stringify(opts.crop));
     return request<ProjectDetail>(`/api/upload/${id}`, { method: "POST", body: form });
   },

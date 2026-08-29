@@ -1,0 +1,87 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Σ MathViz Textbook → Explanation Video" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: Σ
+        - generic [ref=e6]:
+          - generic [ref=e7]: MathViz
+          - generic [ref=e8]: Textbook → Explanation Video
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "New Video" [ref=e11] [cursor=pointer]:
+          - /url: /create
+  - main [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - generic [ref=e19]: UPLOADED
+            - generic [ref=e20]: 163929ad-9d67-42aa-92b0-660e5bc62d74
+          - heading "Multi page test" [level=1] [ref=e21]
+        - generic [ref=e22]:
+          - button "Refresh" [ref=e23] [cursor=pointer]
+          - button "Delete" [ref=e29] [cursor=pointer]
+          - button "Analyze Page" [ref=e33] [cursor=pointer]
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]:
+              - heading "Uploaded pages" [level=2] [ref=e40]
+              - generic [ref=e41]:
+                - button "Prev" [ref=e42] [cursor=pointer]
+                - generic [ref=e43]: 2 / 2
+                - button "Next" [disabled] [ref=e44]
+            - generic [ref=e45]:
+              - button [ref=e46] [cursor=pointer]:
+                - img "multi_page_1.png" [ref=e47]
+              - button [ref=e48] [cursor=pointer]:
+                - img "multi_page_2.png" [ref=e49]
+            - img "multi_page_2.png" [ref=e123]
+            - paragraph [ref=e52]: multi_page_2.png
+          - generic [ref=e53]:
+            - generic [ref=e55]:
+              - heading "Extracted mathematics" [level=2] [ref=e56]
+              - paragraph [ref=e57]: Review and correct before generating. Flagged items must be fixed — the system will not invent mathematics.
+            - paragraph [ref=e58]: No expressions yet. Upload a page and click Analyze.
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - generic [ref=e61]:
+              - heading "Generation progress" [level=3] [ref=e62]
+              - generic [ref=e63]: 5%
+            - list [ref=e66]:
+              - listitem [ref=e67]:
+                - generic [ref=e70]: Uploading
+              - listitem [ref=e71]:
+                - generic [ref=e74]: Reading textbook
+              - listitem [ref=e75]:
+                - generic [ref=e78]: Human verification
+              - listitem [ref=e79]:
+                - generic [ref=e82]: Understanding mathematics
+              - listitem [ref=e83]:
+                - generic [ref=e86]: Creating explanation
+              - listitem [ref=e87]:
+                - generic [ref=e90]: Creating scene specs
+              - listitem [ref=e91]:
+                - generic [ref=e94]: Generating narration
+              - listitem [ref=e95]:
+                - generic [ref=e98]: Creating MathVizAI scenes
+              - listitem [ref=e99]:
+                - generic [ref=e102]: Rendering video
+              - listitem [ref=e103]:
+                - generic [ref=e106]: Finalizing
+              - listitem [ref=e107]:
+                - generic [ref=e110]: Complete
+          - generic [ref=e111]:
+            - heading "Voice settings" [level=3] [ref=e112]
+            - generic [ref=e113]:
+              - generic [ref=e114]: Gender
+              - generic [ref=e115]: female
+              - generic [ref=e116]: Speed
+              - generic [ref=e117]: "1"
+              - generic [ref=e118]: Language
+              - generic [ref=e119]: en
+              - generic [ref=e120]: Subtitles
+              - generic [ref=e121]: "On"
+  - alert [ref=e122]

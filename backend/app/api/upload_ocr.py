@@ -47,6 +47,7 @@ async def upload_file(
     rotation: int = Form(0),
     page_number: int = Form(1),
     crop_json: str | None = Form(None),
+    replace: bool = Form(True),
     db: Session = Depends(get_db),
 ) -> ProjectDetail:
     settings = get_settings()
@@ -91,16 +92,23 @@ async def upload_file(
     except Exception as exc:
         raise HTTPException(400, f"Failed to process file: {exc}") from exc
 
+    if replace:
+        for uf in list(project.uploaded_files):
+            db.delete(uf)
+        db.flush()
+        db.expire(project, ["uploaded_files"])
+
+    n = (
+        db.query(UploadedFile)
+        .filter(UploadedFile.project_id == project.id)
+        .count()
+        + 1
+    )
     storage = get_storage()
-    original_key = storage.project_key(project_id, "original", filename)
-    processed_key = storage.project_key(project_id, "original", "page.png")
+    original_key = storage.project_key(project_id, "original", f"original_{n:02d}_{filename}")
+    processed_key = storage.project_key(project_id, "original", f"page_{n:02d}.png")
     storage.upload_bytes(original_key, data, content_type)
     storage.upload_bytes(processed_key, processed, "image/png")
-
-    # Replace prior uploads
-    for uf in list(project.uploaded_files):
-        db.delete(uf)
-    db.flush()
 
     uf = UploadedFile(
         project_id=project.id,

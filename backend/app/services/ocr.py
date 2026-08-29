@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 OCR_SYSTEM_PROMPT = """You are a mathematical OCR specialist optimized for scanned mathematics textbooks.
 
-Your job is to extract ALL content from the page with extreme accuracy for mathematical notation.
+Your job is to extract ALL content from the page(s) with extreme accuracy for mathematical notation.
 
 CRITICAL RULES:
 1. Preserve mathematical notation EXACTLY. Convert every equation/expression to valid LaTeX.
@@ -24,7 +24,7 @@ CRITICAL RULES:
 3. Fractions must use \\frac{a}{b}. Roots use \\sqrt{}. Powers use ^.
 4. Matrices, integrals, sums must use proper LaTeX environments.
 5. Assign a confidence score 0.0–1.0 for each element. If unsure about a symbol, LOWER confidence and set needs_review=true. Do NOT guess.
-6. Distinguish CONTENT FOUND ON THE PAGE from anything you might infer — only extract what is visible.
+6. Distinguish CONTENT FOUND ON THE PAGE(S) from anything you might infer — only extract what is visible.
 7. Bounding boxes are normalized [0,1] relative to image width/height: {x, y, width, height}.
 
 Return ONLY valid JSON matching the schema."""
@@ -32,7 +32,7 @@ Return ONLY valid JSON matching the schema."""
 OCR_SCHEMA_INSTRUCTION = """
 Return JSON with this shape:
 {
-  "full_text": "plain-text reading of the page with LaTeX inline where useful",
+  "full_text": "plain-text reading of the page(s) with LaTeX inline where useful",
   "topic_guess": "short topic title if visible",
   "elements": [
     {

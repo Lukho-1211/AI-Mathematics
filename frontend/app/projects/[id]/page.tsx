@@ -24,6 +24,7 @@ export default function ProjectPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, MathExpression>>({});
+  const [pageIndex, setPageIndex] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -77,6 +78,23 @@ export default function ProjectPage() {
   );
 
   const primaryVideo = project?.videos.find((v) => v.is_primary) || project?.videos[0];
+
+  const uploadedPages = useMemo(() => {
+    if (!project) return [];
+    if (project.uploaded_pages?.length) return project.uploaded_pages;
+    if (project.uploaded_page_url) {
+      return [{ filename: "page.png", url: project.uploaded_page_url }];
+    }
+    return [];
+  }, [project]);
+
+  const activePage = uploadedPages[Math.min(pageIndex, Math.max(0, uploadedPages.length - 1))];
+
+  useEffect(() => {
+    if (pageIndex >= uploadedPages.length && uploadedPages.length > 0) {
+      setPageIndex(0);
+    }
+  }, [uploadedPages.length, pageIndex]);
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(label);
@@ -197,21 +215,74 @@ export default function ProjectPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          {/* Uploaded page */}
+          {/* Uploaded page(s) */}
           <section className="panel p-5">
-            <h2 className="font-display text-xl">Uploaded page</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-xl">
+                Uploaded page{uploadedPages.length > 1 ? "s" : ""}
+              </h2>
+              {uploadedPages.length > 1 && (
+                <div className="flex items-center gap-2 text-sm">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={pageIndex <= 0}
+                    onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+                  >
+                    Prev
+                  </button>
+                  <span className="text-slate-400">
+                    {Math.min(pageIndex + 1, uploadedPages.length)} / {uploadedPages.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={pageIndex >= uploadedPages.length - 1}
+                    onClick={() =>
+                      setPageIndex((i) => Math.min(uploadedPages.length - 1, i + 1))
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+            {uploadedPages.length > 1 && (
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {uploadedPages.map((p, i) => (
+                  <button
+                    key={`${p.filename}-${i}`}
+                    type="button"
+                    onClick={() => setPageIndex(i)}
+                    className={`shrink-0 overflow-hidden rounded-lg border ${
+                      i === pageIndex ? "border-accent ring-1 ring-accent" : "border-white/10"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.url}
+                      alt={p.filename}
+                      className="h-16 w-12 object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="mt-3 overflow-hidden rounded-xl bg-black/40">
-              {project.uploaded_page_url ? (
+              {activePage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={project.uploaded_page_url}
-                  alt="Textbook page"
+                  src={activePage.url}
+                  alt={activePage.filename || "Textbook page"}
                   className="mx-auto max-h-[480px] object-contain"
                 />
               ) : (
                 <div className="p-10 text-center text-slate-500">No page uploaded</div>
               )}
             </div>
+            {activePage && (
+              <p className="mt-2 truncate text-xs text-slate-500">{activePage.filename}</p>
+            )}
           </section>
 
           {/* OCR Review */}
@@ -281,6 +352,9 @@ export default function ProjectPage() {
                         <span className="rounded bg-white/10 px-2 py-0.5 uppercase">
                           {expr.element_type}
                         </span>
+                        {expr.page_location && (
+                          <span className="rounded bg-white/5 px-2 py-0.5">{expr.page_location}</span>
+                        )}
                         <span>confidence {(expr.confidence * 100).toFixed(0)}%</span>
                         {expr.needs_review && (
                           <span className="text-amber-300">needs review</span>
