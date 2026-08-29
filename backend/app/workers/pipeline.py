@@ -6,7 +6,7 @@ import tempfile
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from app.core.database import SessionLocal
@@ -77,7 +77,9 @@ def _map_scene_type(raw: str) -> SceneType:
     except Exception:
         mapping = {
             "title": SceneType.TITLE_CARD,
-            "overview": SceneType.TEXTBOOK_PAGE,
+            "overview": SceneType.CONCEPT,
+            "page_overview": SceneType.CONCEPT,
+            "textbook_page": SceneType.CONCEPT,
             "example": SceneType.ALGEBRA_STEPS,
             "summary": SceneType.SUMMARY_CARD,
         }
@@ -501,17 +503,7 @@ def generate_video(self, project_id: str) -> dict[str, Any]:
             ).delete()
             db.commit()
 
-            # Download first textbook image for page overview scenes
-            textbook_path: Optional[Path] = None
-            uploaded_sorted = sorted(
-                [u for u in project.uploaded_files if u.processed_storage_key],
-                key=lambda u: (u.created_at is None, u.created_at),
-            )
-            uploaded = uploaded_sorted[0] if uploaded_sorted else None
-            if uploaded and uploaded.processed_storage_key:
-                textbook_path = tmp_path / "textbook.png"
-                storage.download_file(uploaded.processed_storage_key, str(textbook_path))
-
+            # Uploaded textbook scans are for OCR/review only — never shown in the MP4
             viz_local: dict[str, Path] = {}
             for i, scene in enumerate(scenes):
                 pct = 5 + int(90 * (i / max(1, len(scenes))))
@@ -542,7 +534,6 @@ def generate_video(self, project_id: str) -> dict[str, Any]:
                     result = mathviz.render_scene(
                         spec,
                         duration_sec=float(scene.duration_actual or scene.duration_target),
-                        textbook_image_path=textbook_path,
                         work_dir=scene_dir,
                     )
                     vkey = storage.project_key(project.id, "mathviz", f"{scene.scene_id}.mp4")

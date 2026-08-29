@@ -2,6 +2,8 @@
 
 Convert a **scanned mathematics textbook page** into a professional, narrated explanation video powered by an in-house **MathVizAI** architecture (LLM scene planning → Manim animation → FFmpeg assembly), with OpenAI for math OCR, reasoning, and TTS.
 
+The uploaded scan is used for **OCR and review only** — it is **not** shown in the generated MP4. The video draws the mathematics (graphs, diagrams, number lines, algebra steps) with distinct colors per concept.
+
 ## Architecture
 
 - **Frontend**: Next.js 14 + TypeScript + Tailwind + KaTeX
