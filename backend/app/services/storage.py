@@ -137,6 +137,37 @@ class StorageService:
         except ClientError as exc:
             logger.warning("Failed to delete %s: %s", key, exc)
 
+    def delete_prefix(self, prefix: str) -> int:
+        """Delete all objects under a key prefix. Returns number of objects deleted."""
+        if not prefix.endswith("/"):
+            prefix = f"{prefix}/"
+        deleted = 0
+        try:
+            paginator = self.client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+                objects = page.get("Contents") or []
+                if not objects:
+                    continue
+                # delete_objects accepts up to 1000 keys per call
+                for i in range(0, len(objects), 1000):
+                    batch = objects[i : i + 1000]
+                    keys = [{"Key": obj["Key"]} for obj in batch]
+                    try:
+                        self.client.delete_objects(
+                            Bucket=self.bucket,
+                            Delete={"Objects": keys, "Quiet": True},
+                        )
+                        deleted += len(keys)
+                    except ClientError as exc:
+                        logger.warning(
+                            "Failed to delete batch under %s: %s", prefix, exc
+                        )
+        except ClientError as exc:
+            logger.warning("Failed to list objects under %s: %s", prefix, exc)
+        if deleted:
+            logger.info("Deleted %d objects under %s", deleted, prefix)
+        return deleted
+
     def public_url_for(self, key: str) -> str:
         return f"{self.public_url}/{self.bucket}/{key}"
 

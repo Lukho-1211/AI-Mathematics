@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Download, Film, Loader2, Plus, AlertCircle } from "lucide-react";
+import { Download, Film, Loader2, Plus, AlertCircle, Trash2 } from "lucide-react";
 import { api, ProjectSummary } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 
@@ -34,6 +34,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = async () => {
     try {
@@ -52,6 +53,24 @@ export default function DashboardPage() {
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, []);
+
+  const handleDelete = async (e: React.MouseEvent, p: ProjectSummary) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (deletingId) return;
+    if (!window.confirm(`Delete “${p.title}”? This cannot be undone.`)) return;
+
+    setDeletingId(p.id);
+    setError(null);
+    try {
+      await api.deleteProject(p.id);
+      setProjects((prev) => prev.filter((x) => x.id !== p.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete project");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -102,52 +121,67 @@ export default function DashboardPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
-            <Link
+            <div
               key={p.id}
-              href={`/projects/${p.id}`}
-              className="panel group overflow-hidden transition hover:border-accent/40"
+              className="panel group relative overflow-hidden transition hover:border-accent/40"
             >
-              <div className="relative aspect-video overflow-hidden bg-ink-800">
-                {p.thumbnail_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={p.thumbnail_url}
-                    alt={p.title}
-                    className="absolute inset-0 h-full w-full object-contain"
-                  />
+              <Link href={`/projects/${p.id}`} className="block">
+                <div className="relative aspect-video overflow-hidden bg-ink-800">
+                  {p.thumbnail_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.thumbnail_url}
+                      alt={p.title}
+                      className="absolute inset-0 h-full w-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-slate-600">
+                      <Film size={32} />
+                    </div>
+                  )}
+                  <div className="absolute left-2 top-2 z-10">
+                    <StatusBadge status={p.status} />
+                  </div>
+                </div>
+                <div className="space-y-2 p-4">
+                  <h3 className="line-clamp-1 font-semibold group-hover:text-accent-soft">
+                    {p.title}
+                  </h3>
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>{new Date(p.created_at).toLocaleString()}</span>
+                    <span>{p.progress_percent}%</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all"
+                      style={{ width: `${p.progress_percent}%` }}
+                    />
+                  </div>
+                  {p.has_video && (
+                    <div className="flex items-center gap-1 text-xs text-emerald-300">
+                      <Download size={12} /> Ready to download
+                    </div>
+                  )}
+                  {p.error_message && (
+                    <div className="line-clamp-2 text-xs text-red-300">{p.error_message}</div>
+                  )}
+                </div>
+              </Link>
+              <button
+                type="button"
+                aria-label={`Delete ${p.title}`}
+                title="Delete project"
+                disabled={deletingId === p.id}
+                onClick={(e) => handleDelete(e, p)}
+                className="absolute right-2 top-2 z-20 rounded-lg border border-white/15 bg-ink-950/80 p-1.5 text-slate-300 opacity-90 backdrop-blur transition hover:border-red-500/50 hover:bg-red-500/20 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletingId === p.id ? (
+                  <Loader2 className="animate-spin" size={14} />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-slate-600">
-                    <Film size={32} />
-                  </div>
+                  <Trash2 size={14} />
                 )}
-                <div className="absolute left-2 top-2 z-10">
-                  <StatusBadge status={p.status} />
-                </div>
-              </div>
-              <div className="space-y-2 p-4">
-                <h3 className="line-clamp-1 font-semibold group-hover:text-accent-soft">
-                  {p.title}
-                </h3>
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>{new Date(p.created_at).toLocaleString()}</span>
-                  <span>{p.progress_percent}%</span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-accent transition-all"
-                    style={{ width: `${p.progress_percent}%` }}
-                  />
-                </div>
-                {p.has_video && (
-                  <div className="flex items-center gap-1 text-xs text-emerald-300">
-                    <Download size={12} /> Ready to download
-                  </div>
-                )}
-                {p.error_message && (
-                  <div className="line-clamp-2 text-xs text-red-300">{p.error_message}</div>
-                )}
-              </div>
-            </Link>
+              </button>
+            </div>
           ))}
         </div>
       )}

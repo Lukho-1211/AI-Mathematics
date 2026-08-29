@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Download,
@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Sparkles,
   Check,
+  Trash2,
 } from "lucide-react";
 import { api, MathExpression, ProjectDetail } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -17,6 +18,7 @@ import { ProgressChecklist } from "@/components/ProgressChecklist";
 
 export default function ProjectPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +91,20 @@ export default function ProjectPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!project || busy) return;
+    if (!window.confirm(`Delete “${project.title}”? This cannot be undone.`)) return;
+    setBusy("delete");
+    setError(null);
+    try {
+      await api.deleteProject(project.id);
+      router.push("/");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete project");
+      setBusy(null);
+    }
+  };
+
   if (!project && !error) {
     return (
       <div className="flex items-center gap-2 text-slate-400">
@@ -114,6 +130,14 @@ export default function ProjectPage() {
         <div className="flex flex-wrap gap-2">
           <button className="btn-secondary" onClick={() => load()} disabled={!!busy}>
             <RefreshCw size={14} /> Refresh
+          </button>
+          <button className="btn-danger" onClick={handleDelete} disabled={!!busy}>
+            {busy === "delete" ? (
+              <Loader2 className="animate-spin" size={14} />
+            ) : (
+              <Trash2 size={14} />
+            )}
+            Delete
           </button>
           {project.status === "UPLOADED" && (
             <button

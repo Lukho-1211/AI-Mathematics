@@ -191,6 +191,8 @@ def delete_project(project_id: UUID, db: Session = Depends(get_db)) -> dict:
     project = db.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+    storage = get_storage()
+    storage.delete_prefix(f"projects/{project_id}")
     db.delete(project)
     db.commit()
     return {"ok": True}
