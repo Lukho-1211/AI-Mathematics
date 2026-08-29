@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-950 text-slate-100 antialiased;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(91, 140, 255, 0.18), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(245, 197, 66, 0.08), transparent);
+  min-height: 100vh;
+}
+
+.panel {
+  @apply rounded-2xl border border-white/10 bg-ink-900/80 shadow-panel backdrop-blur;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition;
+}
+
+.btn-primary {
+  @apply btn bg-accent text-ink-950 hover:bg-accent-soft disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-secondary {
+  @apply btn border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50;
+}
+
+.btn-danger {
+  @apply btn border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20;
+}
+
+.input {
+  @apply w-full rounded-xl border border-white/10 bg-ink-800 px-3 py-2 text-sm outline-none focus:border-accent;
+}
+
+.label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400;
+}

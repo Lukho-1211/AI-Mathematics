@@ -1,0 +1,133 @@
+"""Progress SSE, video downloads, and misc API routes."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from typing import AsyncGenerator
+from uuid import UUID
+
+import redis
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse, StreamingResponse
+from sqlalchemy.orm import Session
+from sse_starlette.sse import EventSourceResponse
+
+from app.core.config import get_settings
+from app.core.database import get_db
+from app.models import Project, SubtitleAsset, VideoAsset
+from app.services.progress import progress_channel
+from app.services.storage import get_storage
+
+router = APIRouter(tags=["progress", "video"])
+
+
+@router.get("/api/progress/{project_id}")
+async def progress_sse(project_id: UUID) -> EventSourceResponse:
+    settings = get_settings()
+
+    async def event_generator() -> AsyncGenerator[dict, None]:
+        r = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+        pubsub = r.pubsub()
+        channel = progress_channel(project_id)
+        pubsub.subscribe(channel)
+        # Send latest snapshot immediately
+        latest = r.get(f"project:{project_id}:progress:latest")
+        if latest:
+            yield {"event": "progress", "data": latest}
+        try:
+            while True:
+                message = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if message and message.get("type") == "message":
+                    data = message["data"]
+                    yield {"event": "progress", "data": data}
+                    try:
+                        parsed = json.loads(data)
+                        status = parsed.get("status")
+                        if status in ("COMPLETED", "FAILED"):
+                            await asyncio.sleep(0.5)
+                            break
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.25)
+        finally:
+            pubsub.unsubscribe(channel)
+            pubsub.close()
+            r.close()
+
+    return EventSourceResponse(event_generator())
+
+
+@router.get("/api/video/{project_id}")
+def get_primary_video(project_id: UUID, db: Session = Depends(get_db)) -> RedirectResponse:
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    video = next((v for v in project.video_assets if v.is_primary), None)
+    if not video:
+        video = project.video_assets[0] if project.video_assets else None
+    if not video:
+        raise HTTPException(404, "Video not ready")
+    url = get_storage().presigned_url(video.storage_key)
+    return RedirectResponse(url)
+
+
+@router.get("/api/video/{project_id}/download")
+def download_video(
+    project_id: UUID, resolution: str = "1080p", db: Session = Depends(get_db)
+) -> StreamingResponse:
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    video = next((v for v in project.video_assets if v.resolution == resolution), None)
+    if not video:
+        video = next((v for v in project.video_assets if v.is_primary), None)
+    if not video:
+        raise HTTPException(404, "Video not found")
+    storage = get_storage()
+    filename = f"mathviz_{project_id}_{video.resolution}.mp4"
+    return StreamingResponse(
+        storage.iter_object(video.storage_key),
+        media_type="video/mp4",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/api/video/{project_id}/subtitles/{fmt}")
+def download_subtitles(
+    project_id: UUID, fmt: str, db: Session = Depends(get_db)
+) -> StreamingResponse:
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    fmt = fmt.lower()
+    if fmt not in ("srt", "vtt"):
+        raise HTTPException(400, "format must be srt or vtt")
+    sub = next((s for s in project.subtitle_assets if s.format == fmt), None)
+    if not sub:
+        raise HTTPException(404, "Subtitles not found")
+    storage = get_storage()
+    media_type = "text/vtt" if fmt == "vtt" else "application/x-subrip"
+    filename = f"mathviz_{project_id}.{fmt}"
+    return StreamingResponse(
+        storage.iter_object(sub.storage_key),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/api/video/{project_id}/lesson")
+def download_lesson(project_id: UUID, db: Session = Depends(get_db)) -> StreamingResponse:
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    storage = get_storage()
+    key = storage.project_key(project_id, "lesson", "lesson.md")
+    if not storage.exists(key):
+        raise HTTPException(404, "Lesson export not found")
+    filename = f"mathviz_{project_id}_lesson.md"
+    return StreamingResponse(
+        storage.iter_object(key),
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
