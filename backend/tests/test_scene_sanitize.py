@@ -1,5 +1,7 @@
 """Tests for scene sanitization and draw inference."""
 
+from unittest.mock import patch
+
 from app.services.understanding import (
     sanitize_scenes,
     safe_parse_function,
@@ -176,3 +178,58 @@ def test_safe_substitute_param():
     result = safe_substitute_param("a * x**2", "a", -1)
     assert result is not None
     assert "-" in result or result.startswith("-")
+
+
+def test_structured_scenes_do_not_mark_used_fallback(tmp_path):
+    provider = MathVizAIProvider()
+    fake_video = tmp_path / "out.mp4"
+    fake_video.write_bytes(b"fake")
+
+    graph_spec = {
+        "title": "Quadratic graph",
+        "scene_type": "graph_2d",
+        "visualization": {
+            "type": "graph_2d",
+            "draw": {
+                "kind": "graph_2d",
+                "x_range": [-1, 6],
+                "y_range": [-2, 8],
+                "series": [
+                    {
+                        "id": "c",
+                        "label": "curve",
+                        "expr": "x**2 - 5*x + 6",
+                        "color": "YELLOW",
+                    }
+                ],
+            },
+        },
+    }
+
+    with patch.object(provider, "_run_manim", return_value=fake_video):
+        result = provider.render_scene(graph_spec, duration_sec=5.0, work_dir=tmp_path / "graph")
+
+    assert result.used_fallback is False
+    assert "Axes" in result.manim_code
+
+
+def test_algebra_steps_without_draw_uses_fallback_flag(tmp_path):
+    provider = MathVizAIProvider()
+    fake_video = tmp_path / "out.mp4"
+    fake_video.write_bytes(b"fake")
+
+    spec = {
+        "title": "Factor",
+        "scene_type": "algebra_steps",
+        "visualization": {
+            "type": "algebra_steps",
+            "math_expression": "a^2 - b^2",
+            "steps": ["(a+b)(a-b)"],
+        },
+    }
+
+    with patch.object(provider, "_run_manim", return_value=fake_video):
+        result = provider.render_scene(spec, duration_sec=5.0, work_dir=tmp_path / "algebra")
+
+    assert result.used_fallback is True
+    assert "TransformMatchingTex" in result.manim_code

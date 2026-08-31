@@ -134,24 +134,43 @@ class MathVizAIProvider(MathVizProvider):
 
         if draw_kind == "graph_2d" or (viz_type == "graph_2d" and draw):
             code = self._graph_2d_scene(scene_spec, duration_sec)
+            used_fallback = False
         elif draw_kind == "number_line" or (viz_type == "number_line" and draw):
             code = self._number_line_scene(scene_spec, duration_sec)
+            used_fallback = False
         elif draw_kind == "geometry" or (viz_type == "geometry" and draw):
             code = self._geometry_scene(scene_spec, duration_sec)
+            used_fallback = False
         elif draw_kind == "matrix" or (viz_type == "matrix" and draw):
             code = self._matrix_scene(scene_spec, duration_sec)
+            used_fallback = False
         elif viz_type == "graph_2d":
             code = self._graph_2d_scene(scene_spec, duration_sec)
+            used_fallback = False
         elif viz_type == "number_line":
             code = self._number_line_scene(scene_spec, duration_sec)
+            used_fallback = False
         elif viz_type == "geometry":
             code = self._geometry_scene(scene_spec, duration_sec)
+            used_fallback = False
         elif viz_type == "matrix":
             code = self._matrix_scene(scene_spec, duration_sec)
+            used_fallback = False
         elif viz_type == "algebra_steps":
-            code = self._algebra_steps_scene(viz, title, duration_sec)
+            code, used_fallback = self._algebra_steps_scene(viz, title, duration_sec)
         elif viz_type in ("title_card", "summary_card", "practice", "why_explanation", "concept", "none"):
-            code = self._deterministic_card(scene_spec, duration_sec)
+            # Prefer draw when concept/why still carries one
+            if draw and draw_kind == "graph_2d":
+                code = self._graph_2d_scene(scene_spec, duration_sec)
+            elif draw and draw_kind == "number_line":
+                code = self._number_line_scene(scene_spec, duration_sec)
+            elif draw and draw_kind == "geometry":
+                code = self._geometry_scene(scene_spec, duration_sec)
+            elif draw and draw_kind == "matrix":
+                code = self._matrix_scene(scene_spec, duration_sec)
+            else:
+                code = self._deterministic_card(scene_spec, duration_sec)
+            used_fallback = False
         else:
             code, used_fallback = self._generate_with_self_correction(
                 scene_spec, duration_sec, root
@@ -711,13 +730,28 @@ class MathVizAIProvider(MathVizProvider):
             '''
         ).strip()
 
-    def _algebra_steps_scene(self, viz: dict[str, Any], title: str, duration: float) -> str:
+    def _algebra_steps_scene(self, viz: dict[str, Any], title: str, duration: float) -> tuple[str, bool]:
         expr = viz.get("math_expression") or ""
         steps = viz.get("steps") or []
         all_steps = [expr] + [s for s in steps if s and s != expr]
         if not all_steps:
             all_steps = [title]
-        return FALLBACK_TEMPLATE.format(title=title, steps=all_steps, duration=max(duration, 5.0))
+        draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else None
+        if draw and (draw.get("kind") or "graph_2d") == "graph_2d":
+            # Structured graph beside algebra is intentional, not a fallback card
+            return self._graph_2d_scene(
+                {"title": title, "visualization": {"type": "graph_2d", "draw": draw, "steps": all_steps}},
+                duration,
+            ), False
+        if draw and draw.get("kind") == "number_line":
+            return (
+                self._number_line_scene(
+                    {"title": title, "visualization": {"type": "number_line", "draw": draw, "steps": all_steps}},
+                    duration,
+                ),
+                False,
+            )
+        return FALLBACK_TEMPLATE.format(title=title, steps=all_steps, duration=max(duration, 5.0)), True
 
     def _deterministic_card(self, scene_spec: dict[str, Any], duration: float) -> str:
         viz = scene_spec.get("visualization") or {}

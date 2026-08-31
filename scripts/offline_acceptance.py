@@ -28,7 +28,7 @@ def test_acceptance_math_steps() -> None:
 
 def test_deterministic_algebra_manim_syntax() -> None:
     provider = MathVizAIProvider()
-    code = provider._algebra_steps_scene(
+    code, _used_fallback = provider._algebra_steps_scene(
         {
             "math_expression": "x^2 - 5x + 6 = 0",
             "steps": ["(x-2)(x-3)=0", "x=2", "x=3"],
