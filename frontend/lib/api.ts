@@ -40,6 +40,7 @@ export interface Scene {
   visualization_spec: Record<string, unknown>;
   status: string;
   error_message?: string | null;
+  preview_url?: string | null;
 }
 
 export interface ProjectSummary {

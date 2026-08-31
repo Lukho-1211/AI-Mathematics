@@ -39,6 +39,7 @@ from app.services.understanding import (
     MathUnderstandingService,
     SceneSpecService,
     ScriptService,
+    sanitize_scenes,
 )
 from app.services.video_render import SubtitleService, VideoRenderService
 from app.services.voice import VoiceService
@@ -397,6 +398,7 @@ def generate_video(self, project_id: str) -> dict[str, Any]:
                         },
                     }
                 )
+        scenes_data = sanitize_scenes(scenes_data)
 
         # Math QC on algebra scenes BEFORE rendering
         math_check = qc.validate_scenes_math(scenes_data)

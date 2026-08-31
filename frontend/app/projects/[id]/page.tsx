@@ -14,6 +14,7 @@ import {
 import { api, MathExpression, ProjectDetail } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 import { LatexView } from "@/components/LatexView";
+import { NarrationView } from "@/components/NarrationView";
 import { ProgressChecklist } from "@/components/ProgressChecklist";
 
 export default function ProjectPage() {
@@ -433,9 +434,9 @@ export default function ProjectPage() {
           {project.script && (
             <section className="panel space-y-3 p-5">
               <h2 className="font-display text-xl">Narration script</h2>
-              <pre className="whitespace-pre-wrap rounded-xl bg-ink-800/80 p-4 text-sm leading-relaxed text-slate-300">
-                {project.script.full_script}
-              </pre>
+              <div className="whitespace-pre-wrap rounded-xl bg-ink-800/80 p-4 text-sm leading-relaxed text-slate-300">
+                <NarrationView text={project.script.full_script} />
+              </div>
             </section>
           )}
 
@@ -443,20 +444,56 @@ export default function ProjectPage() {
             <section className="panel space-y-3 p-5">
               <h2 className="font-display text-xl">Scenes</h2>
               <div className="space-y-2">
-                {project.scenes.map((s) => (
-                  <details key={s.id} className="rounded-xl border border-white/10 bg-ink-800/40 p-3">
-                    <summary className="cursor-pointer font-medium">
-                      {s.scene_id} · {s.title}{" "}
-                      <span className="text-xs text-slate-500">
-                        ({s.scene_type}, {(s.duration_actual || s.duration_target).toFixed(1)}s)
-                      </span>
-                    </summary>
-                    <p className="mt-2 text-sm text-slate-400">{s.narration}</p>
-                    <pre className="mt-2 overflow-auto rounded bg-black/30 p-2 text-[11px] text-slate-500">
-                      {JSON.stringify(s.visualization_spec, null, 2)}
-                    </pre>
-                  </details>
-                ))}
+                {project.scenes.map((s) => {
+                  const viz = s.visualization_spec || {};
+                  const draw =
+                    viz && typeof viz === "object" && "draw" in viz
+                      ? (viz.draw as Record<string, unknown> | null)
+                      : null;
+                  const notice =
+                    draw && typeof draw === "object" && typeof draw.notice === "string"
+                      ? draw.notice
+                      : null;
+                  return (
+                    <details
+                      key={s.id}
+                      className="rounded-xl border border-white/10 bg-ink-800/40 p-3"
+                      open={Boolean(s.preview_url || notice)}
+                    >
+                      <summary className="cursor-pointer font-medium">
+                        {s.scene_id} · {s.title}{" "}
+                        <span className="text-xs text-slate-500">
+                          ({s.scene_type}, {(s.duration_actual || s.duration_target).toFixed(1)}s)
+                        </span>
+                      </summary>
+                      <div className="mt-2 text-sm text-slate-400">
+                        <NarrationView text={s.narration} />
+                      </div>
+                      {notice && (
+                        <p className="mt-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-accent-soft">
+                          <span className="font-semibold text-accent">Notice: </span>
+                          {notice}
+                        </p>
+                      )}
+                      {s.preview_url && (
+                        <video
+                          key={s.preview_url}
+                          controls
+                          className="mt-3 w-full max-w-xl rounded-lg bg-black"
+                          src={s.preview_url}
+                        />
+                      )}
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs text-slate-500">
+                          Visualization spec
+                        </summary>
+                        <pre className="mt-1 overflow-auto rounded bg-black/30 p-2 text-[11px] text-slate-500">
+                          {JSON.stringify(s.visualization_spec, null, 2)}
+                        </pre>
+                      </details>
+                    </details>
+                  );
+                })}
               </div>
             </section>
           )}
