@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess
@@ -20,8 +19,9 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Shared palette with scene planning (gold, blue, green, rose, violet)
-CONCEPT_PALETTE = ["#F5C542", "#3B82F6", "#22C55E", "#F43F5E", "#A855F7"]
+_MANIM_COLORS = frozenset(
+    {"YELLOW", "TEAL", "ORANGE", "PINK", "GREEN", "BLUE", "RED", "WHITE", "PURE_BLUE"}
+)
 
 
 @dataclass
@@ -56,17 +56,11 @@ Rules:
 3. Import from manim: from manim import *
 4. Use MathTex / Tex for mathematics. Prefer TransformMatchingTex for algebra steps.
 5. Target duration approximately {duration} seconds using self.wait() appropriately.
-6. Clean educational style: dark blue/black background (#0b1220), high-contrast math.
+6. Clean educational style: dark blue/black background, high-contrast white/yellow math.
 7. Resolution-agnostic (no hardcoded pixel positions beyond Manim coords).
-8. NEVER use ImageMobject, Image, or any external file / uploaded textbook page path.
-   Only draw with Manim primitives: Axes, ParametricFunction / axes.plot, Dot, Line,
-   Polygon, Circle, NumberLine, MathTex, Text, VGroup.
-9. ILLUSTRATE the narration — do not only write equations. Draw graphs, diagrams, or
-   number lines when the scene_spec includes visualization.draw or implies a visual.
-10. Use distinct colors from visualization.draw.series (or palette gold/blue/green/rose/violet).
-    Do not paint every object the same yellow/white. Show a legend when there are 2+ series.
-11. Avoid network calls, file writes outside the scene, and shell commands.
-12. Keep code self-contained and syntactically valid.
+8. Never use ImageMobject or external image files — draw with Manim primitives only.
+9. Avoid network calls, file writes outside the scene, and shell commands.
+10. Keep code self-contained and syntactically valid.
 """
 
 
@@ -124,51 +118,48 @@ class MathVizAIProvider(MathVizProvider):
         # Remap leftover textbook_page — never ImageMobject
         viz_type = (viz.get("type") or scene_spec.get("scene_type") or "none").lower()
         if viz_type in ("textbook_page", "overview", "page_overview"):
-            draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else None
-            kind = (draw or {}).get("kind") if draw else None
-            viz_type = kind if kind in ("graph_2d", "geometry", "number_line") else "concept"
+            draw0 = viz.get("draw") if isinstance(viz.get("draw"), dict) else None
+            kind = (draw0 or {}).get("kind") if draw0 else None
+            viz_type = kind if kind in ("graph_2d", "geometry", "number_line", "matrix") else "concept"
             viz["type"] = viz_type
             scene_spec = {**scene_spec, "visualization": viz, "scene_type": viz_type}
 
         title = scene_spec.get("title") or viz.get("title") or "Mathematics"
         draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else None
-        draw_kind = (draw.get("kind") if draw else None) or viz_type
+        draw_kind = (draw.get("kind") if draw else None) or None
 
-        code: str
-        used_fallback: bool
+        # Prefer structured draw templates before text cards / LLM codegen
+        code: Optional[str] = None
+        used_fallback = True
 
-        if viz_type in ("title_card", "summary_card", "practice", "none"):
-            code = self._deterministic_card(scene_spec, duration_sec)
-            used_fallback = True
-        elif viz_type in ("graph_2d",) or (draw and draw_kind == "graph_2d" and viz_type not in ("algebra_steps",)):
+        if draw_kind == "graph_2d" or (viz_type == "graph_2d" and draw):
             code = self._graph_2d_scene(scene_spec, duration_sec)
-            used_fallback = True
-        elif viz_type == "number_line" or (draw and draw_kind == "number_line" and viz_type not in ("algebra_steps",)):
+        elif draw_kind == "number_line" or (viz_type == "number_line" and draw):
             code = self._number_line_scene(scene_spec, duration_sec)
-            used_fallback = True
-        elif viz_type == "geometry" or (draw and draw_kind == "geometry" and viz_type not in ("algebra_steps",)):
+        elif draw_kind == "geometry" or (viz_type == "geometry" and draw):
             code = self._geometry_scene(scene_spec, duration_sec)
-            used_fallback = True
+        elif draw_kind == "matrix" or (viz_type == "matrix" and draw):
+            code = self._matrix_scene(scene_spec, duration_sec)
+        elif viz_type == "graph_2d":
+            code = self._graph_2d_scene(scene_spec, duration_sec)
+        elif viz_type == "number_line":
+            code = self._number_line_scene(scene_spec, duration_sec)
+        elif viz_type == "geometry":
+            code = self._geometry_scene(scene_spec, duration_sec)
+        elif viz_type == "matrix":
+            code = self._matrix_scene(scene_spec, duration_sec)
         elif viz_type == "algebra_steps":
             code = self._algebra_steps_scene(viz, title, duration_sec)
-            used_fallback = True
-        elif viz_type in ("concept", "why_explanation") and draw:
-            if draw_kind == "graph_2d":
-                code = self._graph_2d_scene(scene_spec, duration_sec)
-            elif draw_kind == "number_line":
-                code = self._number_line_scene(scene_spec, duration_sec)
-            elif draw_kind == "geometry":
-                code = self._geometry_scene(scene_spec, duration_sec)
-            else:
-                code = self._deterministic_card(scene_spec, duration_sec)
-            used_fallback = True
-        elif viz_type in ("concept", "why_explanation"):
+        elif viz_type in ("title_card", "summary_card", "practice", "why_explanation", "concept", "none"):
             code = self._deterministic_card(scene_spec, duration_sec)
-            used_fallback = True
         else:
             code, used_fallback = self._generate_with_self_correction(
                 scene_spec, duration_sec, root
             )
+
+        if code is None:
+            code = self._absolute_fallback(title, viz, duration_sec)
+            used_fallback = True
 
         # Hard guard: never ship ImageMobject / file paths of uploads
         if "ImageMobject" in code:
@@ -254,7 +245,6 @@ class MathVizAIProvider(MathVizProvider):
         user = {
             "scene_spec": scene_spec,
             "duration_sec": duration_sec,
-            "color_palette": CONCEPT_PALETTE,
             "previous_error": last_error or None,
             "instruction": (
                 "Fix the previous_error if present; regenerate a correct GeneratedScene. "
@@ -281,16 +271,25 @@ class MathVizAIProvider(MathVizProvider):
 
     def _run_manim(self, code_path: Path, media_dir: Path, root: Path) -> Optional[Path]:
         media_dir.mkdir(parents=True, exist_ok=True)
-        quality = "-qh" if os.environ.get("MANIM_QUALITY", "low") == "high" else "-ql"
         cmd = [
             "manim",
             "render",
-            quality,
+            "-ql",
             "--media_dir",
             str(media_dir),
             str(code_path),
             "GeneratedScene",
         ]
+        if os.environ.get("MANIM_QUALITY", "low") == "high":
+            cmd = [
+                "manim",
+                "render",
+                "-qh",
+                "--media_dir",
+                str(media_dir),
+                str(code_path),
+                "GeneratedScene",
+            ]
 
         stderr_path = root / "manim_stderr.txt"
         try:
@@ -319,243 +318,228 @@ class MathVizAIProvider(MathVizProvider):
         videos.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         return videos[0]
 
-    def _algebra_steps_scene(self, viz: dict[str, Any], title: str, duration: float) -> str:
-        expr = viz.get("math_expression") or ""
-        steps = viz.get("steps") or []
-        all_steps = [expr] + [s for s in steps if s and s != expr]
-        if not all_steps:
-            all_steps = [title]
+    @staticmethod
+    def _manim_color(name: str, default: str = "YELLOW") -> str:
+        c = (name or default).upper()
+        return c if c in _MANIM_COLORS else default
 
-        draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else None
-        # If planner omitted draw but expression is plottable, synthesize a simple graph
-        if not draw and expr:
-            from app.services.understanding import _latexish_to_python, _looks_like_function
+    def _graph_2d_scene(self, scene_spec: dict[str, Any], duration: float) -> str:
+        """Axes + labeled series overlays and optional parameter sweep."""
+        viz = scene_spec.get("visualization") or {}
+        draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else {}
+        title = str(draw.get("title") or scene_spec.get("title") or viz.get("title") or "Graph")
+        notice = str(draw.get("notice") or "Notice how the graph changes.")
+        axes = draw.get("axes") if isinstance(draw.get("axes"), dict) else {}
+        x_range = draw.get("x_range") if isinstance(draw.get("x_range"), (list, tuple)) else None
+        y_range = draw.get("y_range") if isinstance(draw.get("y_range"), (list, tuple)) else None
+        if x_range and len(x_range) >= 2:
+            x_min, x_max = float(x_range[0]), float(x_range[1])
+        else:
+            x_min = float(axes.get("x_min", -5))
+            x_max = float(axes.get("x_max", 5))
+        if y_range and len(y_range) >= 2:
+            y_min, y_max = float(y_range[0]), float(y_range[1])
+        else:
+            y_min = float(axes.get("y_min", -5))
+            y_max = float(axes.get("y_max", 5))
 
-            if _looks_like_function(expr):
-                py = _latexish_to_python(expr)
-                if py:
-                    draw = {
-                        "kind": "graph_2d",
-                        "x_range": [-1, 6],
-                        "y_range": [-2, 8],
-                        "series": [
-                            {
-                                "id": "curve",
-                                "label": expr,
-                                "expr": py,
-                                "color": CONCEPT_PALETTE[0],
-                            }
-                        ],
-                    }
-
-        if draw and (draw.get("kind") or "graph_2d") == "graph_2d":
-            return self._algebra_with_graph(title, all_steps, draw, duration)
-        if draw and draw.get("kind") == "number_line":
-            # Prefer number line illustration beside steps via dedicated scene
-            return self._number_line_scene(
-                {"title": title, "visualization": {"type": "number_line", "draw": draw, "steps": all_steps}},
-                duration,
+        series = draw.get("series") if isinstance(draw.get("series"), list) else []
+        clean_series: list[dict[str, str]] = []
+        for i, s in enumerate(series):
+            if not isinstance(s, dict):
+                continue
+            expr = str(s.get("expr") or "").strip()
+            if not expr or not _is_safe_embedded_expr(expr):
+                continue
+            clean_series.append(
+                {
+                    "expr": expr,
+                    "label": str(s.get("label") or expr)[:40],
+                    "color": self._manim_color(str(s.get("color") or "YELLOW")),
+                }
             )
 
-        return FALLBACK_TEMPLATE.format(title=title, steps=all_steps, duration=max(duration, 5.0))
+        sweep = draw.get("parameter_sweep") if isinstance(draw.get("parameter_sweep"), dict) else None
+        sweep_family = ""
+        sweep_param = "a"
+        sweep_values: list[float] = []
+        if sweep:
+            fam = str(sweep.get("family") or "").strip()
+            if fam and _is_safe_embedded_expr(fam):
+                sweep_family = fam
+                sweep_param = re.sub(r"[^a-zA-Z_]", "", str(sweep.get("param") or "a"))[:8] or "a"
+                for v in sweep.get("values") or []:
+                    try:
+                        sweep_values.append(float(v))
+                    except (TypeError, ValueError):
+                        continue
+                sweep_values = sweep_values[:6]
 
-    def _algebra_with_graph(
-        self, title: str, steps: list[str], draw: dict[str, Any], duration: float
-    ) -> str:
-        series = list(draw.get("series") or [])
-        x_range = list(draw.get("x_range") or [-1, 6])
-        y_range = list(draw.get("y_range") or [-2, 8])
-        if len(x_range) < 2:
-            x_range = [-1, 6]
-        if len(y_range) < 2:
-            y_range = [-2, 8]
+        if not clean_series and not sweep_family:
+            # Minimal default parabola comparison
+            clean_series = [
+                {"expr": "x**2", "label": "a = 1", "color": "YELLOW"},
+                {"expr": "-x**2", "label": "a = -1", "color": "TEAL"},
+            ]
+
+        highlights = []
+        for h in draw.get("highlights") or []:
+            if not isinstance(h, dict):
+                continue
+            pt = h.get("point")
+            if not (isinstance(pt, (list, tuple)) and len(pt) >= 2):
+                continue
+            try:
+                px, py = float(pt[0]), float(pt[1])
+            except (TypeError, ValueError):
+                continue
+            highlights.append(
+                {"point": [px, py], "label": str(h.get("label") or f"({px:g},{py:g})")[:24]}
+            )
+
+        wait_each = max(0.6, float(duration) / max(4, len(clean_series) + len(sweep_values) + 2))
+
         return textwrap.dedent(
             f'''
             from manim import *
+            import numpy as np
 
             class GeneratedScene(Scene):
                 def construct(self):
                     self.camera.background_color = "#0b1220"
                     title = Text({title!r}, font_size=32, color=WHITE).to_edge(UP)
-                    self.play(FadeIn(title))
+                    notice = Text({notice!r}, font_size=20, color=YELLOW)
+                    notice.next_to(title, DOWN, buff=0.25)
+                    if notice.width > 12:
+                        notice.scale_to_fit_width(12)
                     axes = Axes(
-                        x_range=[{x_range[0]}, {x_range[1]}, 1],
-                        y_range=[{y_range[0]}, {y_range[1]}, 1],
-                        x_length=5.5,
-                        y_length=4.0,
-                        tips=False,
-                        axis_config={{"color": GREY_B, "stroke_width": 2}},
-                    )
-                    axes.to_edge(LEFT, buff=0.4).shift(DOWN * 0.2)
-                    self.play(Create(axes), run_time=0.8)
-                    series = {series!r}
-                    legend_items = VGroup()
-                    plotted = VGroup()
-                    for i, s in enumerate(series):
-                        color = s.get("color") or {CONCEPT_PALETTE!r}[i % 5]
-                        kind = (s.get("kind") or "curve").lower()
-                        label = s.get("label") or s.get("id") or f"s{{i}}"
-                        if kind == "point":
-                            x = float(s.get("x", 0))
-                            y = float(s.get("y", 0))
-                            try:
-                                dot = Dot(axes.c2p(x, y), color=color, radius=0.1)
-                            except Exception:
-                                continue
-                            plotted.add(dot)
-                            self.play(FadeIn(dot), run_time=0.4)
-                        else:
-                            expr = s.get("expr")
-                            if not expr:
-                                continue
-                            try:
-                                graph = axes.plot(lambda x, e=expr: eval(e, {{"__builtins__": {{}}}}, {{"x": x}}), color=color)
-                                plotted.add(graph)
-                                self.play(Create(graph), run_time=1.0)
-                            except Exception:
-                                continue
-                        swatch = Dot(color=color, radius=0.08)
-                        txt = Text(str(label)[:28], font_size=18, color=color)
-                        row = VGroup(swatch, txt).arrange(RIGHT, buff=0.15)
-                        legend_items.add(row)
-                    if len(legend_items):
-                        legend_items.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
-                        legend_items.to_corner(UR, buff=0.35)
-                        self.play(FadeIn(legend_items), run_time=0.5)
-                    steps = {steps!r}
-                    step_group = VGroup()
-                    for i, e in enumerate(steps[:5]):
-                        try:
-                            mob = MathTex(e, font_size=28, color=WHITE if i < len(steps)-1 else YELLOW)
-                        except Exception:
-                            mob = Text(e, font_size=22, color=WHITE)
-                        step_group.add(mob)
-                    if len(step_group):
-                        step_group.arrange(DOWN, aligned_edge=LEFT, buff=0.3)
-                        step_group.scale_to_fit_width(5.5)
-                        step_group.next_to(axes, RIGHT, buff=0.4)
-                        step_group.set_y(0.5)
-                        wait_t = max(0.6, {duration} / max(2, len(step_group) + 2))
-                        for mob in step_group:
-                            self.play(FadeIn(mob, shift=RIGHT * 0.2), run_time=0.45)
-                            self.wait(wait_t)
-                    else:
-                        self.wait(max(1.0, {duration} - 2.0))
-                    self.wait(0.5)
-            '''
-        ).strip()
-
-    def _graph_2d_scene(self, scene_spec: dict[str, Any], duration: float) -> str:
-        viz = scene_spec.get("visualization") or {}
-        draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else {}
-        title = scene_spec.get("title") or viz.get("title") or "Graph"
-        series = list(draw.get("series") or [])
-        if not series and viz.get("math_expression"):
-            from app.services.understanding import _latexish_to_python
-
-            py = _latexish_to_python(str(viz["math_expression"]))
-            if py:
-                series = [
-                    {
-                        "id": "curve",
-                        "label": viz["math_expression"],
-                        "expr": py,
-                        "color": CONCEPT_PALETTE[0],
-                    }
-                ]
-        if not series:
-            return self._deterministic_card(scene_spec, duration)
-
-        x_range = list(draw.get("x_range") or [-2, 6])
-        y_range = list(draw.get("y_range") or [-4, 8])
-        if len(x_range) < 2:
-            x_range = [-2, 6]
-        if len(y_range) < 2:
-            y_range = [-4, 8]
-        bullets = viz.get("bullets") or []
-
-        return textwrap.dedent(
-            f'''
-            from manim import *
-
-            class GeneratedScene(Scene):
-                def construct(self):
-                    self.camera.background_color = "#0b1220"
-                    title = Text({title!r}, font_size=34, color=WHITE).to_edge(UP)
-                    self.play(FadeIn(title))
-                    axes = Axes(
-                        x_range=[{float(x_range[0])}, {float(x_range[1])}, 1],
-                        y_range=[{float(y_range[0])}, {float(y_range[1])}, 1],
+                        x_range=[{x_min}, {x_max}, 1],
+                        y_range=[{y_min}, {y_max}, 1],
                         x_length=9,
                         y_length=5.2,
                         tips=False,
-                        axis_config={{"color": GREY_B, "stroke_width": 2}},
+                        axis_config={{"color": GREY_B, "include_numbers": False}},
                     )
-                    axes.next_to(title, DOWN, buff=0.35)
-                    self.play(Create(axes), run_time=0.9)
-                    series = {series!r}
-                    legend_items = VGroup()
+                    axes.next_to(notice, DOWN, buff=0.35)
+                    self.play(FadeIn(title), FadeIn(notice), Create(axes), run_time=0.8)
+
+                    series = {clean_series!r}
+                    graphs = []
+                    labels = VGroup()
                     for i, s in enumerate(series):
-                        color = s.get("color") or {CONCEPT_PALETTE!r}[i % 5]
-                        kind = (s.get("kind") or "curve").lower()
-                        label = s.get("label") or s.get("id") or f"s{{i}}"
-                        if kind == "point":
-                            x = float(s.get("x", 0))
-                            y = float(s.get("y", 0))
+                        expr = s["expr"]
+                        color = globals().get(s["color"], YELLOW)
+                        def _fn(x, e=expr):
+                            return float(eval(e, {{"__builtins__": {{}}}}, {{"x": x, "np": np}}))
+                        try:
+                            g = axes.plot(_fn, color=color, stroke_width=4)
+                        except Exception:
+                            continue
+                        lab = Text(s["label"], font_size=18, color=color)
+                        graphs.append(g)
+                        labels.add(lab)
+                        # Ghost previous overlays at lower opacity
+                        for prev in graphs[:-1]:
+                            prev.set_stroke(opacity=0.35)
+                        self.play(Create(g), run_time=0.7)
+                        self.wait({wait_each * 0.5})
+
+                    if len(labels):
+                        labels.arrange(RIGHT, buff=0.4)
+                        labels.next_to(axes, DOWN, buff=0.2)
+                        self.play(FadeIn(labels), run_time=0.4)
+
+                    # Parameter sweep: animate successive values of the family
+                    sweep_family = {sweep_family!r}
+                    sweep_param = {sweep_param!r}
+                    sweep_values = {sweep_values!r}
+                    if sweep_family and sweep_values:
+                        def make_fn(val):
+                            def _fn(x, v=val, fam=sweep_family, p=sweep_param):
+                                env = {{"x": x, "np": np, p: v}}
+                                return float(eval(fam, {{"__builtins__": {{}}}}, env))
+                            return _fn
+                        param_label = Text(f"{{sweep_param}} = {{sweep_values[0]:g}}", font_size=22, color=ORANGE)
+                        param_label.to_corner(UR).shift(LEFT * 0.3 + DOWN * 0.8)
+                        self.play(FadeIn(param_label))
+                        active = None
+                        for vi, val in enumerate(sweep_values):
                             try:
-                                dot = Dot(axes.c2p(x, y), color=color, radius=0.12)
-                                lab = Text(str(label)[:20], font_size=20, color=color)
-                                lab.next_to(dot, UP, buff=0.12)
-                                self.play(FadeIn(dot), FadeIn(lab), run_time=0.5)
+                                g = axes.plot(make_fn(val), color=ORANGE, stroke_width=5)
                             except Exception:
-                                pass
-                        else:
-                            expr = s.get("expr")
-                            if expr:
-                                try:
-                                    graph = axes.plot(
-                                        lambda x, e=expr: eval(e, {{"__builtins__": {{}}}}, {{"x": x}}),
-                                        color=color,
-                                        stroke_width=4,
-                                    )
-                                    self.play(Create(graph), run_time=1.2)
-                                except Exception:
-                                    pass
-                        swatch = Dot(color=color, radius=0.08)
-                        txt = Text(str(label)[:32], font_size=18, color=color)
-                        legend_items.add(VGroup(swatch, txt).arrange(RIGHT, buff=0.15))
-                    if len(legend_items) >= 1:
-                        legend_items.arrange(DOWN, aligned_edge=LEFT, buff=0.12)
-                        legend_items.to_corner(UR, buff=0.3)
-                        self.play(FadeIn(legend_items), run_time=0.4)
-                    bullets = {bullets!r}
-                    if bullets:
-                        bg = VGroup(*[Text(str(b)[:50], font_size=20, color=WHITE) for b in bullets[:3]])
-                        bg.arrange(DOWN, aligned_edge=LEFT)
-                        bg.to_edge(DOWN, buff=0.3)
-                        self.play(FadeIn(bg), run_time=0.5)
-                    self.wait(max(1.5, {duration} - 3.5))
+                                continue
+                            new_lab = Text(f"{{sweep_param}} = {{val:g}}", font_size=22, color=ORANGE)
+                            new_lab.move_to(param_label)
+                            if active is None:
+                                self.play(Create(g), Transform(param_label, new_lab), run_time=0.7)
+                            else:
+                                self.play(
+                                    ReplacementTransform(active, g),
+                                    Transform(param_label, new_lab),
+                                    run_time=0.8,
+                                )
+                            active = g
+                            self.wait({wait_each})
+
+                    # Highlights (vertex / intercepts)
+                    highlights = {highlights!r}
+                    for h in highlights:
+                        try:
+                            dot = Dot(axes.coords_to_point(h["point"][0], h["point"][1]), color=WHITE)
+                            lab = Text(h["label"], font_size=18, color=WHITE).next_to(dot, UP, buff=0.15)
+                            self.play(FadeIn(dot), FadeIn(lab), run_time=0.4)
+                        except Exception:
+                            pass
+
+                    self.wait(0.6)
             '''
         ).strip()
 
     def _number_line_scene(self, scene_spec: dict[str, Any], duration: float) -> str:
         viz = scene_spec.get("visualization") or {}
         draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else {}
-        title = scene_spec.get("title") or viz.get("title") or "Number line"
-        series = list(draw.get("series") or [])
-        x_range = list(draw.get("x_range") or [-5, 5])
-        if len(x_range) < 2:
-            x_range = [-5, 5]
-        if not series:
-            series = [
+        title = str(draw.get("title") or scene_spec.get("title") or "Number line")
+        notice = str(draw.get("notice") or "Locate the marked values.")
+        x_min, x_max = -5.0, 5.0
+        if isinstance(draw.get("x_range"), (list, tuple)) and len(draw["x_range"]) >= 2:
+            x_min, x_max = float(draw["x_range"][0]), float(draw["x_range"][1])
+        else:
+            x_min = float(draw.get("x_min", -5))
+            x_max = float(draw.get("x_max", 5))
+        points = draw.get("points") if isinstance(draw.get("points"), list) else []
+        # Also accept series[{kind:point,x}] from older planners
+        if not points and isinstance(draw.get("series"), list):
+            for s in draw["series"]:
+                if not isinstance(s, dict):
+                    continue
+                if (s.get("kind") or "").lower() == "point" or "x" in s or "value" in s:
+                    try:
+                        val = float(s.get("value", s.get("x")))
+                    except (TypeError, ValueError):
+                        continue
+                    points.append(
+                        {
+                            "value": val,
+                            "label": s.get("label") or f"{val:g}",
+                            "color": s.get("color") or "YELLOW",
+                        }
+                    )
+        clean_points: list[dict[str, Any]] = []
+        for i, p in enumerate(points):
+            if not isinstance(p, dict):
+                continue
+            try:
+                val = float(p.get("value"))
+            except (TypeError, ValueError):
+                continue
+            clean_points.append(
                 {
-                    "id": "p0",
-                    "label": "0",
-                    "kind": "point",
-                    "x": 0,
-                    "color": CONCEPT_PALETTE[0],
+                    "value": val,
+                    "label": str(p.get("label") or f"{val:g}")[:24],
+                    "color": self._manim_color(str(p.get("color") or "YELLOW")),
                 }
-            ]
+            )
+        wait_each = max(0.5, float(duration) / max(3, len(clean_points) + 1))
 
         return textwrap.dedent(
             f'''
@@ -565,69 +549,81 @@ class MathVizAIProvider(MathVizProvider):
                 def construct(self):
                     self.camera.background_color = "#0b1220"
                     title = Text({title!r}, font_size=34, color=WHITE).to_edge(UP)
-                    self.play(FadeIn(title))
-                    x0, x1 = {float(x_range[0])}, {float(x_range[1])}
-                    nline = NumberLine(
-                        x_range=[x0, x1, 1],
+                    notice = Text({notice!r}, font_size=20, color=YELLOW)
+                    notice.next_to(title, DOWN, buff=0.3)
+                    if notice.width > 12:
+                        notice.scale_to_fit_width(12)
+                    number_line = NumberLine(
+                        x_range=[{x_min}, {x_max}, 1],
                         length=10,
                         include_numbers=True,
                         color=GREY_B,
                     )
-                    nline.next_to(title, DOWN, buff=1.2)
-                    self.play(Create(nline), run_time=0.9)
-                    series = {series!r}
-                    legend_items = VGroup()
-                    for i, s in enumerate(series):
-                        color = s.get("color") or {CONCEPT_PALETTE!r}[i % 5]
-                        kind = (s.get("kind") or "point").lower()
-                        label = s.get("label") or s.get("id") or f"s{{i}}"
-                        if kind in ("interval", "ray", "segment"):
-                            a = float(s.get("x_min", s.get("x", x0)))
-                            b = float(s.get("x_max", s.get("x2", x1)))
-                            try:
-                                start = nline.n2p(a)
-                                end = nline.n2p(b)
-                                line = Line(start, end, color=color, stroke_width=8)
-                                self.play(Create(line), run_time=0.7)
-                            except Exception:
-                                pass
-                        else:
-                            x = float(s.get("x", 0))
-                            try:
-                                dot = Dot(nline.n2p(x), color=color, radius=0.14)
-                                lab = Text(str(label)[:24], font_size=22, color=color)
-                                lab.next_to(dot, UP, buff=0.25)
-                                self.play(FadeIn(dot), FadeIn(lab), run_time=0.5)
-                            except Exception:
-                                pass
-                        swatch = Dot(color=color, radius=0.08)
-                        txt = Text(str(label)[:32], font_size=18, color=color)
-                        legend_items.add(VGroup(swatch, txt).arrange(RIGHT, buff=0.15))
-                    if len(legend_items):
-                        legend_items.arrange(DOWN, aligned_edge=LEFT, buff=0.15)
-                        legend_items.to_edge(DOWN, buff=0.6)
-                        self.play(FadeIn(legend_items), run_time=0.4)
-                    self.wait(max(1.5, {duration} - 3.0))
+                    number_line.next_to(notice, DOWN, buff=1.0)
+                    self.play(FadeIn(title), FadeIn(notice), Create(number_line))
+                    points = {clean_points!r}
+                    for p in points:
+                        color = globals().get(p["color"], YELLOW)
+                        dot = Dot(number_line.n2p(p["value"]), color=color, radius=0.12)
+                        lab = Text(p["label"], font_size=22, color=color).next_to(dot, UP, buff=0.2)
+                        self.play(FadeIn(dot), FadeIn(lab), run_time=0.5)
+                        self.wait({wait_each})
+                    self.wait(0.5)
             '''
         ).strip()
 
     def _geometry_scene(self, scene_spec: dict[str, Any], duration: float) -> str:
         viz = scene_spec.get("visualization") or {}
         draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else {}
-        title = scene_spec.get("title") or viz.get("title") or "Geometry"
-        shapes = list(draw.get("shapes") or [])
-        series = list(draw.get("series") or [])
-        if not shapes:
-            # Build from series labels as a default triangle
-            shapes = [
-                {
-                    "id": "tri",
-                    "kind": "polygon",
-                    "points": [[-2.5, -1.5], [2.5, -1.5], [0, 2.2]],
-                    "label": (series[0].get("label") if series else title)[:30],
-                    "color": (series[0].get("color") if series else CONCEPT_PALETTE[0]),
-                }
-            ]
+        title = str(draw.get("title") or scene_spec.get("title") or "Geometry")
+        notice = str(draw.get("notice") or "Observe the geometric construction.")
+        points = draw.get("points") if isinstance(draw.get("points"), dict) else {
+            "A": [-2, -1],
+            "B": [2, -1],
+            "C": [0, 2],
+        }
+        clean_points: dict[str, list[float]] = {}
+        for name, pt in points.items():
+            if not (isinstance(pt, (list, tuple)) and len(pt) >= 2):
+                continue
+            try:
+                clean_points[str(name)[:8]] = [float(pt[0]), float(pt[1])]
+            except (TypeError, ValueError):
+                continue
+        if not clean_points:
+            clean_points = {"A": [-2.0, -1.0], "B": [2.0, -1.0], "C": [0.0, 2.0]}
+
+        segments = []
+        for seg in draw.get("segments") or []:
+            if isinstance(seg, (list, tuple)) and len(seg) >= 2:
+                a, b = str(seg[0])[:8], str(seg[1])[:8]
+                if a in clean_points and b in clean_points:
+                    segments.append([a, b])
+        polygons = []
+        for poly in draw.get("polygons") or []:
+            if isinstance(poly, (list, tuple)) and len(poly) >= 3:
+                names = [str(n)[:8] for n in poly]
+                if all(n in clean_points for n in names):
+                    polygons.append(names)
+        if not segments and not polygons:
+            names = list(clean_points.keys())
+            if len(names) >= 3:
+                polygons = [names[:3]]
+                segments = [[names[0], names[1]], [names[1], names[2]], [names[2], names[0]]]
+
+        circles = []
+        for c in draw.get("circles") or []:
+            if not isinstance(c, dict):
+                continue
+            center = str(c.get("center") or "")[:8]
+            try:
+                radius = float(c.get("radius", 1))
+            except (TypeError, ValueError):
+                continue
+            if center in clean_points and radius > 0:
+                circles.append({"center": center, "radius": radius})
+
+        wait = max(0.8, float(duration) / 4)
 
         return textwrap.dedent(
             f'''
@@ -637,46 +633,91 @@ class MathVizAIProvider(MathVizProvider):
                 def construct(self):
                     self.camera.background_color = "#0b1220"
                     title = Text({title!r}, font_size=34, color=WHITE).to_edge(UP)
-                    self.play(FadeIn(title))
-                    shapes = {shapes!r}
-                    legend_items = VGroup()
-                    for i, sh in enumerate(shapes):
-                        color = sh.get("color") or {CONCEPT_PALETTE!r}[i % 5]
-                        kind = (sh.get("kind") or "polygon").lower()
-                        label = sh.get("label") or sh.get("id") or f"s{{i}}"
-                        mob = None
-                        if kind == "circle":
-                            r = float(sh.get("radius", 1.5))
-                            c = sh.get("center") or [0, 0]
-                            mob = Circle(radius=r, color=color, stroke_width=4)
-                            mob.move_to([float(c[0]), float(c[1]), 0])
-                        elif kind == "segment" or kind == "line":
-                            pts = sh.get("points") or [[-2, 0], [2, 0]]
-                            mob = Line(
-                                [float(pts[0][0]), float(pts[0][1]), 0],
-                                [float(pts[1][0]), float(pts[1][1]), 0],
-                                color=color,
-                                stroke_width=4,
-                            )
-                        else:
-                            pts = sh.get("points") or [[-2, -1], [2, -1], [0, 2]]
-                            verts = [[float(p[0]), float(p[1]), 0] for p in pts]
-                            mob = Polygon(*verts, color=color, stroke_width=4)
-                        if mob is not None:
-                            self.play(Create(mob), run_time=0.9)
-                            lab = Text(str(label)[:28], font_size=22, color=color)
-                            lab.next_to(mob, DOWN, buff=0.25)
-                            self.play(FadeIn(lab), run_time=0.35)
-                        swatch = Dot(color=color, radius=0.08)
-                        txt = Text(str(label)[:32], font_size=18, color=color)
-                        legend_items.add(VGroup(swatch, txt).arrange(RIGHT, buff=0.15))
-                    if len(legend_items) >= 2:
-                        legend_items.arrange(DOWN, aligned_edge=LEFT, buff=0.12)
-                        legend_items.to_corner(UR, buff=0.35)
-                        self.play(FadeIn(legend_items), run_time=0.4)
-                    self.wait(max(1.5, {duration} - 3.0))
+                    notice = Text({notice!r}, font_size=20, color=YELLOW)
+                    notice.next_to(title, DOWN, buff=0.25)
+                    if notice.width > 12:
+                        notice.scale_to_fit_width(12)
+                    self.play(FadeIn(title), FadeIn(notice))
+                    pts = {clean_points!r}
+                    dots = {{}}
+                    labels = VGroup()
+                    for name, xy in pts.items():
+                        d = Dot([xy[0], xy[1], 0], color=YELLOW)
+                        lab = Text(name, font_size=22, color=WHITE).next_to(d, UP, buff=0.12)
+                        dots[name] = d
+                        labels.add(lab)
+                        self.play(FadeIn(d), FadeIn(lab), run_time=0.3)
+                    for seg in {segments!r}:
+                        a, b = seg[0], seg[1]
+                        line = Line(dots[a].get_center(), dots[b].get_center(), color=TEAL)
+                        self.play(Create(line), run_time=0.4)
+                    for poly in {polygons!r}:
+                        verts = [dots[n].get_center() for n in poly]
+                        shape = Polygon(*verts, color=ORANGE, fill_opacity=0.15)
+                        self.play(Create(shape), run_time=0.5)
+                    for c in {circles!r}:
+                        circ = Circle(radius=c["radius"], color=PINK).move_to(dots[c["center"]])
+                        self.play(Create(circ), run_time=0.5)
+                    self.wait({wait})
             '''
         ).strip()
+
+    def _matrix_scene(self, scene_spec: dict[str, Any], duration: float) -> str:
+        viz = scene_spec.get("visualization") or {}
+        draw = viz.get("draw") if isinstance(viz.get("draw"), dict) else {}
+        title = str(draw.get("title") or scene_spec.get("title") or "Matrix")
+        notice = str(draw.get("notice") or "Compare the matrices.")
+        matrix = str(draw.get("matrix") or viz.get("math_expression") or r"\begin{bmatrix}1&0\\0&1\end{bmatrix}")
+        after = draw.get("after")
+        # Prefer MathTex-friendly content; fall back to Text if latex-ish fails at runtime
+        wait = max(1.0, float(duration) / 3)
+
+        after_block = ""
+        if after:
+            after_block = f'''
+                    after = None
+                    try:
+                        after = MathTex({str(after)!r}, font_size=40, color=TEAL)
+                    except Exception:
+                        after = Text({str(after)!r}, font_size=28, color=TEAL)
+                    after.next_to(before, DOWN, buff=0.8)
+                    self.play(TransformFromCopy(before, after), run_time=1.0)
+                    self.wait({wait})
+            '''
+
+        return textwrap.dedent(
+            f'''
+            from manim import *
+
+            class GeneratedScene(Scene):
+                def construct(self):
+                    self.camera.background_color = "#0b1220"
+                    title = Text({title!r}, font_size=34, color=WHITE).to_edge(UP)
+                    notice = Text({notice!r}, font_size=20, color=YELLOW)
+                    notice.next_to(title, DOWN, buff=0.25)
+                    if notice.width > 12:
+                        notice.scale_to_fit_width(12)
+                    self.play(FadeIn(title), FadeIn(notice))
+                    before = None
+                    try:
+                        before = MathTex({matrix!r}, font_size=42, color=YELLOW)
+                    except Exception:
+                        before = Text({matrix!r}, font_size=28, color=YELLOW)
+                    before.next_to(notice, DOWN, buff=0.6)
+                    self.play(Write(before))
+                    self.wait({wait})
+                    {after_block}
+                    self.wait(0.5)
+            '''
+        ).strip()
+
+    def _algebra_steps_scene(self, viz: dict[str, Any], title: str, duration: float) -> str:
+        expr = viz.get("math_expression") or ""
+        steps = viz.get("steps") or []
+        all_steps = [expr] + [s for s in steps if s and s != expr]
+        if not all_steps:
+            all_steps = [title]
+        return FALLBACK_TEMPLATE.format(title=title, steps=all_steps, duration=max(duration, 5.0))
 
     def _deterministic_card(self, scene_spec: dict[str, Any], duration: float) -> str:
         viz = scene_spec.get("visualization") or {}
@@ -685,14 +726,14 @@ class MathVizAIProvider(MathVizProvider):
         narration = scene_spec.get("narration") or ""
         practice_q = viz.get("practice_question")
         practice_a = viz.get("practice_answer")
-        lines = list(bullets)
+        lines = bullets[:]
         if practice_q:
             lines.append(f"Q: {practice_q}")
         if practice_a:
             lines.append(f"A: {practice_a}")
         if not lines and narration:
             words = narration.split()
-            chunk: list[str] = []
+            chunk = []
             for w in words:
                 chunk.append(w)
                 if len(" ".join(chunk)) > 50:
@@ -731,6 +772,47 @@ class MathVizAIProvider(MathVizProvider):
             '''
         ).strip()
 
+    def _textbook_page_scene(
+        self, scene_spec: dict[str, Any], duration: float, image_path: Path
+    ) -> str:
+        viz = scene_spec.get("visualization") or {}
+        bbox = viz.get("highlight_bbox") or {}
+        img = str(image_path).replace("\\", "/")
+        hx = float(bbox.get("x", 0.1))
+        hy = float(bbox.get("y", 0.1))
+        hw = float(bbox.get("width", 0.8))
+        hh = float(bbox.get("height", 0.2))
+        title = scene_spec.get("title") or "From the textbook"
+        return textwrap.dedent(
+            f'''
+            from manim import *
+
+            class GeneratedScene(Scene):
+                def construct(self):
+                    self.camera.background_color = "#0b1220"
+                    title = Text({title!r}, font_size=32, color=WHITE).to_edge(UP)
+                    img = ImageMobject(r"{img}")
+                    img.set_height(5.5)
+                    img.next_to(title, DOWN, buff=0.3)
+                    self.play(FadeIn(title), FadeIn(img))
+                    w = img.width
+                    h = img.height
+                    rect = Rectangle(
+                        width=max(0.2, {hw}) * w,
+                        height=max(0.1, {hh}) * h,
+                        color=YELLOW,
+                        stroke_width=4,
+                    )
+                    left = img.get_corner(UL)[0] + {hx} * w
+                    top = img.get_corner(UL)[1] - {hy} * h
+                    rect.move_to([left + rect.width/2, top - rect.height/2, 0])
+                    self.play(Create(rect))
+                    self.wait(max(2.0, {duration} - 2.0))
+                    self.play(img.animate.scale(1.15), rect.animate.scale(1.15))
+                    self.wait(1.0)
+            '''
+        ).strip()
+
     def _absolute_fallback(self, title: str, viz: dict[str, Any], duration: float) -> str:
         steps = viz.get("steps") or []
         expr = viz.get("math_expression")
@@ -738,6 +820,20 @@ class MathVizAIProvider(MathVizProvider):
         if not all_steps:
             all_steps = [title]
         return FALLBACK_TEMPLATE.format(title=title, steps=all_steps, duration=max(duration, 4.0))
+
+
+def _is_safe_embedded_expr(expr: str) -> bool:
+    """Allow only simple arithmetic/function expressions for embedding in Manim source."""
+    if not expr or len(expr) > 100:
+        return False
+    lowered = expr.lower()
+    banned = ("import", "exec", "eval", "open", "__", "os.", "sys.", "subprocess", ";", "lambda")
+    if any(b in lowered for b in banned):
+        return False
+    # Characters: digits, letters, operators, parentheses, dots, spaces, asterisks
+    if not re.fullmatch(r"[0-9a-zA-Z_\s\+\-\*/\.\(\),]+", expr):
+        return False
+    return True
 
 
 class MathVizService:

@@ -79,6 +79,7 @@ class SceneOut(BaseModel):
     visualization_spec: dict[str, Any]
     status: str
     error_message: Optional[str] = None
+    preview_url: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

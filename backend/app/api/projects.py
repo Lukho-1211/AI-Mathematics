@@ -97,6 +97,20 @@ def serialize_project(db: Session, project: Project) -> ProjectDetail:
     if project.script:
         script = ScriptOut.model_validate(project.script)
 
+    # Map scene_id -> latest visualization asset for per-scene preview clips
+    viz_by_scene: dict[str, str] = {}
+    for asset in getattr(project, "visualization_assets", None) or []:
+        if asset.storage_key:
+            viz_by_scene[asset.scene_id] = asset.storage_key
+
+    scenes_out: list[SceneOut] = []
+    for s in project.scenes:
+        scene = SceneOut.model_validate(s)
+        key = viz_by_scene.get(s.scene_id)
+        if key:
+            scene.preview_url = storage.presigned_url(key)
+        scenes_out.append(scene)
+
     return ProjectDetail(
         id=project.id,
         title=project.title,
@@ -116,7 +130,7 @@ def serialize_project(db: Session, project: Project) -> ProjectDetail:
         expressions=[MathExpressionOut.model_validate(e) for e in project.math_expressions],
         lesson_plan=lesson,
         script=script,
-        scenes=[SceneOut.model_validate(s) for s in project.scenes],
+        scenes=scenes_out,
         jobs=[JobOut.model_validate(j) for j in project.jobs],
         videos=videos,
         subtitles=subs,

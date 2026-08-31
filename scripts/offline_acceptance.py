@@ -32,43 +32,44 @@ def test_deterministic_algebra_manim_syntax() -> None:
         {
             "math_expression": "x^2 - 5x + 6 = 0",
             "steps": ["(x-2)(x-3)=0", "x=2", "x=3"],
-            "draw": {
-                "kind": "graph_2d",
-                "x_range": [-1, 6],
-                "y_range": [-2, 8],
-                "series": [
-                    {
-                        "id": "curve",
-                        "label": "y = x^2 - 5x + 6",
-                        "expr": "x**2 - 5*x + 6",
-                        "color": "#F5C542",
-                    },
-                    {
-                        "id": "root_a",
-                        "label": "x = 2",
-                        "kind": "point",
-                        "x": 2,
-                        "y": 0,
-                        "color": "#3B82F6",
-                    },
-                    {
-                        "id": "root_b",
-                        "label": "x = 3",
-                        "kind": "point",
-                        "x": 3,
-                        "y": 0,
-                        "color": "#22C55E",
-                    },
-                ],
-            },
         },
         "Quadratic example",
         12.0,
     )
     compile(code, "<scene>", "exec")
     assert "ImageMobject" not in code
-    assert "#F5C542" in code or "F5C542" in code
-    print("OK Manim algebra+graph scene compiles (no ImageMobject)")
+    assert "TransformMatchingTex" in code
+    print("OK Manim algebra scene compiles (no ImageMobject)")
+
+
+def test_deterministic_graph_manim_syntax() -> None:
+    provider = MathVizAIProvider()
+    code = provider._graph_2d_scene(
+        {
+            "title": "Effect of a",
+            "visualization": {
+                "type": "graph_2d",
+                "draw": {
+                    "kind": "graph_2d",
+                    "title": "Effect of a",
+                    "notice": "When a changes sign, the parabola reflects.",
+                    "series": [
+                        {"expr": "x**2", "label": "a = 1", "color": "YELLOW"},
+                        {"expr": "-x**2", "label": "a = -1", "color": "TEAL"},
+                    ],
+                    "parameter_sweep": {
+                        "param": "a",
+                        "family": "a * x**2",
+                        "values": [1, 2, 0.5, -1],
+                    },
+                },
+            },
+        },
+        14.0,
+    )
+    compile(code, "<graph>", "exec")
+    assert "ImageMobject" not in code
+    print("OK Manim graph_2d scene compiles")
 
 
 def test_graph_numberline_geometry_compile() -> None:
@@ -87,15 +88,7 @@ def test_graph_numberline_geometry_compile() -> None:
                             "id": "c",
                             "label": "y=x^2",
                             "expr": "x**2",
-                            "color": "#F5C542",
-                        },
-                        {
-                            "id": "p",
-                            "label": "origin",
-                            "kind": "point",
-                            "x": 0,
-                            "y": 0,
-                            "color": "#3B82F6",
+                            "color": "YELLOW",
                         },
                     ],
                 },
@@ -112,8 +105,8 @@ def test_graph_numberline_geometry_compile() -> None:
                     "kind": "number_line",
                     "x_range": [-1, 5],
                     "series": [
-                        {"id": "a", "label": "2", "kind": "point", "x": 2, "color": "#3B82F6"},
-                        {"id": "b", "label": "3", "kind": "point", "x": 3, "color": "#22C55E"},
+                        {"id": "a", "label": "2", "kind": "point", "x": 2, "color": "BLUE"},
+                        {"id": "b", "label": "3", "kind": "point", "x": 3, "color": "GREEN"},
                     ],
                 },
             },
@@ -127,16 +120,7 @@ def test_graph_numberline_geometry_compile() -> None:
                 "type": "geometry",
                 "draw": {
                     "kind": "geometry",
-                    "shapes": [
-                        {
-                            "id": "t",
-                            "kind": "polygon",
-                            "points": [[-2, -1], [2, -1], [0, 2]],
-                            "label": "ABC",
-                            "color": "#A855F7",
-                        }
-                    ],
-                    "series": [{"id": "t", "label": "ABC", "color": "#A855F7"}],
+                    "notice": "A right triangle.",
                 },
             },
         },
@@ -146,6 +130,23 @@ def test_graph_numberline_geometry_compile() -> None:
         compile(code, f"<{name}>", "exec")
         assert "ImageMobject" not in code, name
     print("OK graph / number_line / geometry scenes compile (no ImageMobject)")
+
+
+def test_sanitize_quadratic_concept() -> None:
+    scenes = sanitize_scenes(
+        [
+            {
+                "scene_id": "scene_03",
+                "title": "Parabola opens",
+                "narration": "If a is positive the parabola opens upward.",
+                "scene_type": "concept",
+                "visualization": {"type": "concept", "math_expression": "y = a x^2"},
+            }
+        ]
+    )
+    assert scenes[0]["visualization"]["type"] == "graph_2d"
+    assert scenes[0]["visualization"]["draw"]["series"]
+    print("OK sanitize remaps quadratic concept to graph_2d")
 
 
 def test_textbook_page_remapped_no_image() -> None:
@@ -170,14 +171,6 @@ def test_textbook_page_remapped_no_image() -> None:
     assert isinstance(scenes[0]["visualization"].get("draw"), dict)
 
     provider = MathVizAIProvider()
-    # Simulate leftover textbook_page reaching the renderer
-    code = provider._deterministic_card(
-        {"title": "Overview", "visualization": {"type": "concept", "bullets": ["Quadratic"]}},
-        5.0,
-    )
-    # Full render_scene path for textbook_page without image
-    result_code_path = None
-    # Use public routing via generating code the same way render_scene would for remapped type
     remapped = {
         "title": "Overview",
         "scene_type": "textbook_page",
@@ -192,17 +185,15 @@ def test_textbook_page_remapped_no_image() -> None:
                         "id": "c",
                         "label": "y",
                         "expr": "x**2 - 5*x + 6",
-                        "color": "#F5C542",
+                        "color": "YELLOW",
                     }
                 ],
             },
         },
     }
-    # Call internal path after remap logic: graph drawer
     code = provider._graph_2d_scene(remapped, 8.0)
     compile(code, "<remapped>", "exec")
     assert "ImageMobject" not in code
-    assert result_code_path is None
     print("OK textbook_page remapped; no ImageMobject")
 
 
@@ -221,7 +212,9 @@ def test_subtitles() -> None:
 if __name__ == "__main__":
     test_acceptance_math_steps()
     test_deterministic_algebra_manim_syntax()
+    test_deterministic_graph_manim_syntax()
     test_graph_numberline_geometry_compile()
+    test_sanitize_quadratic_concept()
     test_textbook_page_remapped_no_image()
     test_subtitles()
     print("All offline acceptance checks passed.")
