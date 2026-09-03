@@ -18,6 +18,8 @@ class ProjectCreate(BaseModel):
     language: str = "en"
     accent: str = "american"
     enable_subtitles: bool = True
+    term: Optional[int] = Field(default=None, ge=1, le=4)
+    week: Optional[int] = Field(default=None, ge=1, le=14)
 
 
 class ProjectUpdate(BaseModel):
@@ -27,6 +29,8 @@ class ProjectUpdate(BaseModel):
     language: Optional[str] = None
     accent: Optional[str] = None
     enable_subtitles: Optional[bool] = None
+    term: Optional[int] = Field(default=None, ge=1, le=4)
+    week: Optional[int] = Field(default=None, ge=1, le=14)
 
 
 class CropBox(BaseModel):
@@ -144,6 +148,8 @@ class ProjectSummary(BaseModel):
     updated_at: datetime
     has_video: bool = False
     thumbnail_url: Optional[str] = None
+    term: Optional[int] = None
+    week: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -165,6 +171,8 @@ class ProjectDetail(BaseModel):
     language: str
     accent: str
     enable_subtitles: bool
+    term: Optional[int] = None
+    week: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     uploaded_page_url: Optional[str] = None

@@ -18,6 +18,8 @@ const ACCEPT = ".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,appli
 const MAX_PAGES = 10;
 const MAX_BYTES = 25 * 1024 * 1024;
 const ALLOWED_EXT = new Set(["jpg", "jpeg", "png", "webp", "pdf"]);
+const TERMS = [1, 2, 3, 4];
+const WEEKS = Array.from({ length: 14 }, (_, i) => i + 1);
 const ALLOWED_MIME = new Set([
   "image/jpeg",
   "image/png",
@@ -88,6 +90,8 @@ export default function CreatePage() {
   const [voiceGender, setVoiceGender] = useState("female");
   const [voiceSpeed, setVoiceSpeed] = useState(1);
   const [language, setLanguage] = useState("en");
+  const [term, setTerm] = useState<number | null>(null);
+  const [week, setWeek] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -203,6 +207,8 @@ export default function CreatePage() {
         voice_speed: voiceSpeed,
         language,
         enable_subtitles: true,
+        term,
+        week,
       } as never);
 
       for (let i = 0; i < pages.length; i++) {
@@ -395,6 +401,39 @@ export default function CreatePage() {
                 <option value="es">Spanish</option>
                 <option value="fr">French</option>
                 <option value="de">German</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Term</label>
+              <select
+                className="input"
+                value={term ?? ""}
+                onChange={(e) => setTerm(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">Select term</option>
+                {TERMS.map((value) => (
+                  <option key={value} value={value}>
+                    Term {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Week</label>
+              <select
+                className="input"
+                value={week ?? ""}
+                onChange={(e) => setWeek(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">Select week</option>
+                {WEEKS.map((value) => (
+                  <option key={value} value={value}>
+                    Week {value}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

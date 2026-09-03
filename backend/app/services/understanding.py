@@ -19,6 +19,25 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# #region agent log
+def _agent_log(hid: str, loc: str, msg: str, data: dict) -> None:
+    import json as _json, time, urllib.request
+    payload = {"sessionId":"820bf8","hypothesisId":hid,"location":loc,"message":msg,"data":data,"timestamp":int(time.time()*1000),"runId":"pre-fix"}
+    line = _json.dumps(payload, default=str) + "\n"
+    for path in ("/app/debug-820bf8.log", "/host_mnt/c/Users/lukho/Documents/AI_Agents/AI Mathematics/debug-820bf8.log", "debug-820bf8.log"):
+        try:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(line)
+        except Exception:
+            pass
+    body = _json.dumps(payload, default=str).encode()
+    for url in ("http://host.docker.internal:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3", "http://127.0.0.1:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3"):
+        try:
+            urllib.request.urlopen(urllib.request.Request(url, data=body, headers={"Content-Type":"application/json","X-Debug-Session-Id":"820bf8"}, method="POST"), timeout=1)
+        except Exception:
+            pass
+# #endregion
+
 # Safe symbols for expression parsing (no arbitrary Python eval).
 _SAFE_LOCALS: dict[str, Any] = {
     "x": sp.symbols("x"),
@@ -243,7 +262,9 @@ Core rule (Explain → Visualize → Connect):
   cause and effect (e.g. a=1 vs a=-1), not only a final static graph.
 
 Rules:
-- For algebra, include explicit step arrays that must be mathematically correct.
+- For algebra_steps scenes you MUST set visualization.math_expression to the original
+  equation (string) AND provide a non-empty visualization.steps array of correct steps.
+  Never emit algebra_steps with an empty math_expression.
 - visualization.type must be one of:
   title_card, algebra_steps, graph_2d, geometry, number_line,
   matrix, concept, why_explanation, summary_card, practice, none
@@ -332,10 +353,69 @@ PAGE CONTENT:
 # ---------------------------------------------------------------------------
 
 
+def _coerce_math_expression(value: Any) -> str:
+    """Normalize LLM math_expression fields (string, list, or null) to a bare string."""
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        for item in value:
+            s = _coerce_math_expression(item)
+            if s:
+                return s
+        return ""
+    return str(value).strip()
+
+
+def _coerce_steps(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for item in value:
+        if item is None:
+            continue
+        s = str(item).strip()
+        if s:
+            out.append(s)
+    return out
+
+
+def _sibling_math_expression(scenes: list[dict[str, Any]], exclude_id: Any) -> str:
+    for sc in scenes:
+        if sc.get("scene_id") == exclude_id:
+            continue
+        viz = sc.get("visualization") if isinstance(sc.get("visualization"), dict) else {}
+        expr = _coerce_math_expression(viz.get("math_expression"))
+        if expr:
+            return expr
+    return ""
+
+
+def _backfill_algebra_expression(
+    viz: dict[str, Any],
+    *,
+    scene: dict[str, Any],
+    all_scenes: list[dict[str, Any]],
+) -> str:
+    """Recover an original equation for algebra_steps when the LLM omitted it."""
+    expr = _coerce_math_expression(viz.get("math_expression"))
+    if expr:
+        return expr
+    for key in ("expression", "equation", "latex"):
+        expr = _coerce_math_expression(viz.get(key))
+        if expr:
+            return expr
+    steps = _coerce_steps(viz.get("steps"))
+    if steps:
+        return steps[0]
+    return _sibling_math_expression(all_scenes, scene.get("scene_id"))
+
+
 def sanitize_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Normalize scene specs so MathViz can render without guessing."""
+    raw_scenes = list(scenes or [])
     out: list[dict[str, Any]] = []
-    for i, raw in enumerate(scenes or []):
+    algebra_dbg: list[dict[str, Any]] = []
+    for i, raw in enumerate(raw_scenes):
         scene = copy.deepcopy(raw)
         scene["order_index"] = int(scene.get("order_index", i))
         viz = scene.get("visualization")
@@ -377,10 +457,48 @@ def sanitize_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         if viz_type in _DRAWABLE_TYPES:
             if viz_type == "algebra_steps":
-                # Algebra keeps steps; optional draw is fine but not required
-                if draw:
-                    viz["draw"] = _sanitize_draw(draw, fallback_kind="algebra_steps", scene=scene, viz=viz)
-            else:
+                raw_expr = viz.get("math_expression")
+                viz["steps"] = _coerce_steps(viz.get("steps"))
+                recovered = _backfill_algebra_expression(
+                    viz, scene=scene, all_scenes=raw_scenes + out
+                )
+                if recovered:
+                    viz["math_expression"] = recovered
+                elif not viz["steps"]:
+                    # Incomplete algebra with nothing to show — remap or demote
+                    inferred = _infer_drawable_kind(scene, viz)
+                    if inferred and inferred != "algebra_steps":
+                        logger.warning(
+                            "Scene %s algebra_steps missing expression/steps; remapping to %s",
+                            scene.get("scene_id"),
+                            inferred,
+                        )
+                        viz_type = inferred
+                        viz["type"] = inferred
+                        scene["scene_type"] = inferred
+                    else:
+                        logger.warning(
+                            "Scene %s algebra_steps missing expression/steps; demoting to concept",
+                            scene.get("scene_id"),
+                        )
+                        viz["type"] = "concept"
+                        scene["scene_type"] = "concept"
+                        viz.pop("draw", None)
+                        viz_type = "concept"
+                # Optional draw beside algebra
+                if viz_type == "algebra_steps" and draw:
+                    viz["draw"] = _sanitize_draw(
+                        draw, fallback_kind="algebra_steps", scene=scene, viz=viz
+                    )
+                algebra_dbg.append({
+                    "scene_id": scene.get("scene_id"),
+                    "raw_expr_type": type(raw_expr).__name__,
+                    "raw_expr": str(raw_expr)[:120] if raw_expr is not None else None,
+                    "recovered": (recovered or "")[:120],
+                    "steps_n": len(viz.get("steps") or []),
+                    "viz_type_after": viz_type,
+                })
+            if viz_type != "algebra_steps" and viz_type in _DRAWABLE_TYPES:
                 sanitized = _sanitize_draw(
                     draw or {},
                     fallback_kind=viz_type,
@@ -405,6 +523,10 @@ def sanitize_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         viz.pop("draw", None)
 
         out.append(scene)
+    # #region agent log
+    if algebra_dbg:
+        _agent_log("B", "understanding.py:sanitize_scenes", "algebra_sanitize", {"outcomes": algebra_dbg})
+    # #endregion
     return out
 
 

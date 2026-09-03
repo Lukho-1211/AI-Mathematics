@@ -1,0 +1,81 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Σ MathViz Textbook → Explanation Video" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: Σ
+        - generic [ref=e6]:
+          - generic [ref=e7]: MathViz
+          - generic [ref=e8]: Textbook → Explanation Video
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "New Video" [ref=e11] [cursor=pointer]:
+          - /url: /create
+  - main [ref=e12]:
+    - generic [ref=e59]:
+      - generic [ref=e60]:
+        - heading "Create explanation video" [level=1] [ref=e61]
+        - paragraph [ref=e62]: Step 1 — Upload one or more scanned mathematics textbook pages (JPG, PNG, WEBP, or PDF). Multiple pages become one lesson video.
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e65]: Textbook pages
+          - button "Drop pages here or click to browse JPG · JPEG · PNG · WEBP · PDF · max 25MB each · up to 10 pages" [ref=e66] [cursor=pointer]:
+            - generic [ref=e70]:
+              - generic [ref=e71]: Drop pages here or click to browse
+              - generic [ref=e72]: JPG · JPEG · PNG · WEBP · PDF · max 25MB each · up to 10 pages
+          - generic [ref=e73]:
+            - generic [ref=e74]: Lesson title
+            - textbox [ref=e75]: Untitled Lesson
+          - generic [ref=e76]:
+            - generic [ref=e77]:
+              - generic [ref=e78]: Voice
+              - combobox [ref=e79]:
+                - option "Female" [selected]
+                - option "Male"
+            - generic [ref=e80]:
+              - generic [ref=e81]: Speed
+              - spinbutton [ref=e82]: "1"
+            - generic [ref=e83]:
+              - generic [ref=e84]: Language
+              - combobox [ref=e85]:
+                - option "English" [selected]
+                - option "Spanish"
+                - option "French"
+                - option "German"
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - generic [ref=e88]: Term
+              - combobox [ref=e89]:
+                - option "Select term" [selected]
+                - option "Term 1"
+                - option "Term 2"
+                - option "Term 3"
+                - option "Term 4"
+            - generic [ref=e90]:
+              - generic [ref=e91]: Week
+              - combobox [ref=e92]:
+                - option "Select week" [selected]
+                - option "Week 1"
+                - option "Week 2"
+                - option "Week 3"
+                - option "Week 4"
+                - option "Week 5"
+                - option "Week 6"
+                - option "Week 7"
+                - option "Week 8"
+                - option "Week 9"
+                - option "Week 10"
+                - option "Week 11"
+                - option "Week 12"
+                - option "Week 13"
+                - option "Week 14"
+          - generic [ref=e93]:
+            - button "Upload only" [disabled] [ref=e94]
+            - button "Upload & Analyze" [disabled] [ref=e95]
+        - generic [ref=e98]:
+          - generic [ref=e99]:
+            - generic [ref=e100]: Preview · crop · rotate
+            - button "Rotate" [disabled] [ref=e101]
+          - generic [ref=e105]: Image preview appears here after you select files.
+  - alert [ref=e58]

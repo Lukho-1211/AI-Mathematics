@@ -1,0 +1,16 @@
+- generic [active] [ref=f1e1]:
+  - banner [ref=f1e2]:
+    - generic [ref=f1e3]:
+      - link "Σ MathViz Textbook → Explanation Video" [ref=f1e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f1e5]: Σ
+        - generic [ref=f1e6]:
+          - generic [ref=f1e7]: MathViz
+          - generic [ref=f1e8]: Textbook → Explanation Video
+      - navigation [ref=f1e9]:
+        - link "Dashboard" [ref=f1e10] [cursor=pointer]:
+          - /url: /
+        - link "New Video" [ref=f1e11] [cursor=pointer]:
+          - /url: /create
+  - main [ref=f1e12]:
+    - generic [ref=f1e13]: Loading project…

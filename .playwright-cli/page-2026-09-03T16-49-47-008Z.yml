@@ -1,0 +1,49 @@
+- generic [active] [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - generic [ref=f2e3]:
+      - link "Σ MathViz Textbook → Explanation Video" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f2e5]: Σ
+        - generic [ref=f2e6]:
+          - generic [ref=f2e7]: MathViz
+          - generic [ref=f2e8]: Textbook → Explanation Video
+      - navigation [ref=f2e9]:
+        - link "Dashboard" [ref=f2e10] [cursor=pointer]:
+          - /url: /
+        - link "New Video" [ref=f2e11] [cursor=pointer]:
+          - /url: /create
+  - main [ref=f2e12]:
+    - generic [ref=f2e13]:
+      - generic [ref=f2e14]:
+        - generic [ref=f2e15]:
+          - heading "Your lessons" [level=1] [ref=f2e16]
+          - paragraph [ref=f2e17]: Upload a scanned mathematics textbook page and MathViz turns it into a narrated, animated explanation video.
+        - link "New Video" [ref=f2e18] [cursor=pointer]:
+          - /url: /create
+      - generic [ref=f2e20]:
+        - generic [ref=f2e21]:
+          - generic [ref=f2e22]: Term
+          - button "All" [ref=f2e23] [cursor=pointer]
+          - button "Term 1" [ref=f2e24] [cursor=pointer]
+          - button "Term 2" [ref=f2e25] [cursor=pointer]
+          - button "Term 3" [ref=f2e26] [cursor=pointer]
+          - button "Term 4" [ref=f2e27] [cursor=pointer]
+        - generic [ref=f2e28]:
+          - generic [ref=f2e29]: Week
+          - combobox "Week" [ref=f2e30]:
+            - option "All weeks" [selected]
+            - option "Week 1"
+            - option "Week 2"
+            - option "Week 3"
+            - option "Week 4"
+            - option "Week 5"
+            - option "Week 6"
+            - option "Week 7"
+            - option "Week 8"
+            - option "Week 9"
+            - option "Week 10"
+            - option "Week 11"
+            - option "Week 12"
+            - option "Week 13"
+            - option "Week 14"
+      - generic [ref=f2e31]: Loading projects…

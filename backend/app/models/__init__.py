@@ -125,6 +125,8 @@ class Project(Base):
     language: Mapped[str] = mapped_column(String(16), default="en")
     accent: Mapped[str] = mapped_column(String(32), default="american")
     enable_subtitles: Mapped[bool] = mapped_column(Boolean, default=True)
+    term: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    week: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

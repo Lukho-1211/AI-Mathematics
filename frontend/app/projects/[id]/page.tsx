@@ -33,6 +33,9 @@ export default function ProjectPage() {
       setProject(data);
       setEdits(Object.fromEntries(data.expressions.map((e) => [e.id, { ...e }])));
       setError(null);
+      // #region agent log
+      fetch('http://127.0.0.1:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'820bf8'},body:JSON.stringify({sessionId:'820bf8',hypothesisId:'E',location:'page.tsx:load',message:'project loaded',data:{status:data.status,ocr_reviewed:data.ocr_reviewed,error_message:data.error_message,generateVisible:Boolean(data.ocr_reviewed && (data.status==='OCR_COMPLETE' || data.status==='AWAITING_REVIEW' || data.status==='FAILED'))},timestamp:Date.now(),runId:'post-fix'})}).catch(()=>{});
+      // #endregion
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load project");
     }
@@ -58,9 +61,19 @@ export default function ProjectPage() {
     return () => clearInterval(t);
   }, [project?.status, load]);
 
-  // SSE progress
+  // SSE progress — only while the pipeline is running. Opening this for
+  // FAILED/COMPLETED jobs used a blocking Redis poll that starved the API.
   useEffect(() => {
-    if (!id) return;
+    if (!id || !project) return;
+    const active = [
+      "PROCESSING",
+      "ANALYZING",
+      "SCRIPT_GENERATED",
+      "VISUALIZING",
+      "NARRATION_GENERATED",
+      "RENDERING",
+    ].includes(project.status);
+    if (!active) return;
     let es: EventSource | null = null;
     try {
       es = new EventSource(api.progressUrl(id));
@@ -71,7 +84,7 @@ export default function ProjectPage() {
       /* polling fallback */
     }
     return () => es?.close();
-  }, [id, load]);
+  }, [id, load, project?.status]);
 
   const needsReview = useMemo(
     () => Object.values(edits).filter((e) => e.needs_review),
@@ -168,7 +181,9 @@ export default function ProjectPage() {
               Analyze Page
             </button>
           )}
-          {(project.status === "OCR_COMPLETE" || project.status === "AWAITING_REVIEW") &&
+          {(project.status === "OCR_COMPLETE" ||
+            project.status === "AWAITING_REVIEW" ||
+            project.status === "FAILED") &&
             project.ocr_reviewed && (
               <button
                 className="btn-primary"
@@ -188,7 +203,7 @@ export default function ProjectPage() {
                 ) : (
                   <Sparkles size={14} />
                 )}
-                Generate Explanation Video
+                {project.status === "FAILED" ? "Retry generation" : "Generate Explanation Video"}
               </button>
             )}
           {primaryVideo?.url && (
@@ -570,7 +585,7 @@ export default function ProjectPage() {
           </section>
 
           {project.ocr_reviewed &&
-            project.status === "OCR_COMPLETE" && (
+            (project.status === "OCR_COMPLETE" || project.status === "FAILED") && (
               <button
                 className="btn-primary w-full"
                 disabled={!!busy}

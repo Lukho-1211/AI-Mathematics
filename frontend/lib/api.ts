@@ -54,6 +54,8 @@ export interface ProjectSummary {
   updated_at: string;
   has_video: boolean;
   thumbnail_url?: string | null;
+  term?: number | null;
+  week?: number | null;
 }
 
 export interface ProjectDetail {
@@ -68,6 +70,8 @@ export interface ProjectDetail {
   language: string;
   accent: string;
   enable_subtitles: boolean;
+  term?: number | null;
+  week?: number | null;
   created_at: string;
   updated_at: string;
   uploaded_page_url?: string | null;

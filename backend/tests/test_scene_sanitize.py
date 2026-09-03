@@ -113,6 +113,46 @@ def test_sanitize_keeps_algebra_steps():
     assert scenes[0]["visualization"]["steps"]
 
 
+def test_sanitize_backfills_algebra_expression_from_steps():
+    scenes = sanitize_scenes(
+        [
+            {
+                "scene_id": "scene_06",
+                "title": "Worked example",
+                "narration": "Factor and solve.",
+                "scene_type": "algebra_steps",
+                "visualization": {
+                    "type": "algebra_steps",
+                    "math_expression": "",
+                    "steps": ["x^2 - 5x + 6 = 0", "(x-2)(x-3)=0", "x=2 or x=3"],
+                },
+            }
+        ]
+    )
+    assert scenes[0]["visualization"]["type"] == "algebra_steps"
+    assert scenes[0]["visualization"]["math_expression"] == "x^2 - 5x + 6 = 0"
+
+
+def test_sanitize_demotes_empty_algebra_steps_to_concept():
+    scenes = sanitize_scenes(
+        [
+            {
+                "scene_id": "scene_06",
+                "title": "Extra note",
+                "narration": "Remember to check your work.",
+                "scene_type": "algebra_steps",
+                "visualization": {
+                    "type": "algebra_steps",
+                    "math_expression": "",
+                    "steps": [],
+                },
+            }
+        ]
+    )
+    assert scenes[0]["scene_type"] == "concept"
+    assert scenes[0]["visualization"]["type"] == "concept"
+
+
 def test_sanitize_number_line_from_roots():
     scenes = sanitize_scenes(
         [

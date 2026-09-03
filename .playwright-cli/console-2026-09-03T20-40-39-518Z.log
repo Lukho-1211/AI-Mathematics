@@ -1,0 +1,149 @@
+[     503ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom.development.js:38559
+[   38099ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38099ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38099ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38099ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38099ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38100ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38100ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38101ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38101ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38101ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38103ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38104ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38104ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38104ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38106ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38106ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38106ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   38106ms] [WARNING] LaTeX-incompatible input and strict mode is set to 'warn': In LaTeX, \\ or \newline does nothing in display mode [newLineInDisplayMode] @ webpack-internal:///(app-pages-browser)/./node_modules/katex/dist/katex.js:412
+[   52860ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:186
+[   54492ms] [ERROR] Warning: The final argument passed to %s changed size between renders. The order and size of this array must remain constant.
+
+Previous: %s
+Incoming: %s%s useEffect [d08b2910-6bb4-46d5-b487-d956729faf7b, async ()=>{
+        try {
+            const data = await _lib_api__WEBPACK_IMPORTED_MODULE_3__.api.getProject(id);
+            setProject(data);
+            setEdits(Object.fromEntries(data.expressions.map((e)=>[
+                    e.id,
+                    {
+                        ...e
+                    }
+                ])));
+            setError(null);
+            // #region agent log
+            fetch("http://127.0.0.1:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Debug-Session-Id": "820bf8"
+                },
+                body: JSON.stringify({
+                    sessionId: "820bf8",
+                    hypothesisId: "E",
+                    location: "page.tsx:load",
+                    message: "project loaded",
+                    data: {
+                        status: data.status,
+                        ocr_reviewed: data.ocr_reviewed,
+                        error_message: data.error_message,
+                        generateVisible: Boolean(data.ocr_reviewed && (data.status === "OCR_COMPLETE" || data.status === "AWAITING_REVIEW"))
+                    },
+                    timestamp: Date.now(),
+                    runId: "pre-fix"
+                })
+            }).catch(()=>{});
+        // #endregion
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to load project");
+        }
+    }] [d08b2910-6bb4-46d5-b487-d956729faf7b, async ()=>{
+        try {
+            const data = await _lib_api__WEBPACK_IMPORTED_MODULE_3__.api.getProject(id);
+            setProject(data);
+            setEdits(Object.fromEntries(data.expressions.map((e)=>[
+                    e.id,
+                    {
+                        ...e
+                    }
+                ])));
+            setError(null);
+            // #region agent log
+            fetch("http://127.0.0.1:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Debug-Session-Id": "820bf8"
+                },
+                body: JSON.stringify({
+                    sessionId: "820bf8",
+                    hypothesisId: "E",
+                    location: "page.tsx:load",
+                    message: "project loaded",
+                    data: {
+                        status: data.status,
+                        ocr_reviewed: data.ocr_reviewed,
+                        error_message: data.error_message,
+                        generateVisible: Boolean(data.ocr_reviewed && (data.status === "OCR_COMPLETE" || data.status === "AWAITING_REVIEW"))
+                    },
+                    timestamp: Date.now(),
+                    runId: "pre-fix"
+                })
+            }).catch(()=>{});
+        // #endregion
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to load project");
+        }
+    }, FAILED] 
+    at ProjectPage (webpack-internal:///(app-pages-browser)/./app/projects/[id]/page.tsx:33:78)
+    at ClientPageRoot (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/client-page.js:14:11)
+    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:243:11)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:349:11)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:153:9)
+    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:228:11)
+    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/render-from-template-context.js:16:44)
+    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:370:11)
+    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:243:11)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:349:11)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:153:9)
+    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:228:11)
+    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/render-from-template-context.js:16:44)
+    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:370:11)
+    at InnerLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:243:11)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:76:9)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at LoadingBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:349:11)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at InnerScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:153:9)
+    at ScrollAndFocusHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:228:11)
+    at RenderFromTemplateContext (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/render-from-template-context.js:16:44)
+    at OuterLayoutRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/layout-router.js:370:11)
+    at main
+    at body
+    at html
+    at RootLayout (Server)
+    at RedirectErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:74:9)
+    at RedirectBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/redirect-boundary.js:82:11)
+    at NotFoundErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:76:9)
+    at NotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/not-found-boundary.js:84:11)
+    at DevRootNotFoundBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/dev-root-not-found-boundary.js:33:11)
+    at ReactDevOverlay (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/ReactDevOverlay.js:87:9)
+    at HotReload (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:321:11)
+    at Router (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/app-router.js:207:11)
+    at ErrorBoundaryHandler (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:113:9)
+    at ErrorBoundary (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/error-boundary.js:160:11)
+    at AppRouter (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/app-router.js:585:13)
+    at ServerRoot (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:112:27)
+    at Root (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:117:11) @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:32
+[   54505ms] [LOG] [Fast Refresh] done in 1646ms @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:43

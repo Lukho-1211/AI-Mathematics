@@ -123,6 +123,8 @@ def serialize_project(db: Session, project: Project) -> ProjectDetail:
         language=project.language,
         accent=project.accent,
         enable_subtitles=project.enable_subtitles,
+        term=project.term,
+        week=project.week,
         created_at=project.created_at,
         updated_at=project.updated_at,
         uploaded_page_url=uploaded_url,
@@ -170,6 +172,8 @@ def list_projects(db: Session = Depends(get_db)) -> list[ProjectSummary]:
                 updated_at=p.updated_at,
                 has_video=any(v.is_primary for v in p.video_assets),
                 thumbnail_url=thumb,
+                term=p.term,
+                week=p.week,
             )
         )
     return out
@@ -186,6 +190,8 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)) -> Pro
         language=payload.language,
         accent=payload.accent,
         enable_subtitles=payload.enable_subtitles,
+        term=payload.term,
+        week=payload.week,
         status=ProjectStatus.CREATED,
     )
     db.add(project)
