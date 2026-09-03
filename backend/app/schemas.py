@@ -204,3 +204,5 @@ class GenerateRequest(BaseModel):
     language: Optional[str] = None
     accent: Optional[str] = None
     enable_subtitles: Optional[bool] = None
+    term: Optional[int] = Field(default=None, ge=1, le=4)
+    week: Optional[int] = Field(default=None, ge=1, le=14)

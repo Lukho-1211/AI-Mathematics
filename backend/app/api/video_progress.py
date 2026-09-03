@@ -41,24 +41,12 @@ async def progress_sse(project_id: UUID) -> EventSourceResponse:
         pubsub = r.pubsub()
         channel = progress_channel(project_id)
         await pubsub.subscribe(channel)
-        latest = await r.get(f"project:{project_id}:progress:latest")
-        # #region agent log
         try:
-            import json as _json, time as _time
-            _p = {"sessionId":"820bf8","hypothesisId":"F","location":"video_progress.py:progress_sse","message":"sse_start","data":{"project_id":str(project_id),"has_latest":bool(latest),"terminal":_terminal_status(latest)},"timestamp":int(_time.time()*1000),"runId":"post-fix"}
-            with open("/app/debug-820bf8.log","a",encoding="utf-8") as _f:
-                _f.write(_json.dumps(_p)+"\n")
-        except Exception:
-            pass
-        # #endregion
-        if latest:
-            yield {"event": "progress", "data": latest}
-            if _terminal_status(latest):
-                await pubsub.unsubscribe(channel)
-                await pubsub.aclose()
-                await r.aclose()
-                return
-        try:
+            latest = await r.get(f"project:{project_id}:progress:latest")
+            if latest:
+                yield {"event": "progress", "data": latest}
+                if _terminal_status(latest):
+                    return
             async for message in pubsub.listen():
                 if message.get("type") != "message":
                     continue

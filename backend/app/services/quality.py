@@ -19,25 +19,6 @@ from app.services.video_render import probe_streams
 
 logger = get_logger(__name__)
 
-# #region agent log
-def _agent_log(hid: str, loc: str, msg: str, data: dict) -> None:
-    import json, time, urllib.request
-    payload = {"sessionId":"820bf8","hypothesisId":hid,"location":loc,"message":msg,"data":data,"timestamp":int(time.time()*1000),"runId":"pre-fix"}
-    line = json.dumps(payload, default=str) + "\n"
-    for path in ("/app/debug-820bf8.log", "/host_mnt/c/Users/lukho/Documents/AI_Agents/AI Mathematics/debug-820bf8.log", "debug-820bf8.log"):
-        try:
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(line)
-        except Exception:
-            pass
-    body = json.dumps(payload, default=str).encode()
-    for url in ("http://host.docker.internal:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3", "http://127.0.0.1:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3"):
-        try:
-            urllib.request.urlopen(urllib.request.Request(url, data=body, headers={"Content-Type":"application/json","X-Debug-Session-Id":"820bf8"}, method="POST"), timeout=1)
-        except Exception:
-            pass
-# #endregion
-
 
 @dataclass
 class MathValidationResult:
@@ -129,9 +110,6 @@ class QualityControlService:
 
     def validate_scenes_math(self, scenes: list[dict[str, Any]]) -> MathValidationResult:
         all_msgs: list[str] = []
-        # #region agent log
-        _agent_log("A", "quality.py:validate_scenes_math", "qc_start", {"code_version":"soft-empty-expr","scene_count":len(scenes or [])})
-        # #endregion
         for sc in scenes:
             viz = sc.get("visualization") or {}
             if (viz.get("type") or sc.get("scene_type")) == "algebra_steps":
@@ -145,9 +123,6 @@ class QualityControlService:
                     steps = []
                 result = self.validate_algebra_steps(expr, steps)
                 all_msgs.extend([f"[{sc.get('scene_id')}] {m}" for m in result.messages])
-                # #region agent log
-                _agent_log("A", "quality.py:validate_scenes_math", "qc_scene_result", {"scene_id":sc.get("scene_id"),"scene_type":sc.get("scene_type"),"viz_type":viz.get("type"),"ok":result.ok,"messages":result.messages[:6]})
-                # #endregion
                 if not result.ok:
                     return MathValidationResult(ok=False, messages=all_msgs, details=result.details)
         return MathValidationResult(ok=True, messages=all_msgs or ["All algebra scenes validated"])

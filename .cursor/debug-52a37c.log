@@ -1,0 +1,2 @@
+{"sessionId": "52a37c", "hypothesisId": "B", "location": "video_progress.py:progress_sse", "message": "sse_start", "data": {"project_id": "d08b2910-6bb4-46d5-b487-d956729faf7b", "has_latest": true, "terminal": true, "cleanup": "try_finally"}, "timestamp": 1788470001843, "runId": "post-fix"}
+{"sessionId": "52a37c", "hypothesisId": "B", "location": "video_progress.py:progress_sse", "message": "sse_cleanup", "data": {"project_id": "d08b2910-6bb4-46d5-b487-d956729faf7b", "via": "finally"}, "timestamp": 1788470001907, "runId": "post-fix"}

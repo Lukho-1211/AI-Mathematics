@@ -19,25 +19,6 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# #region agent log
-def _agent_log(hid: str, loc: str, msg: str, data: dict) -> None:
-    import json as _json, time, urllib.request
-    payload = {"sessionId":"820bf8","hypothesisId":hid,"location":loc,"message":msg,"data":data,"timestamp":int(time.time()*1000),"runId":"pre-fix"}
-    line = _json.dumps(payload, default=str) + "\n"
-    for path in ("/app/debug-820bf8.log", "/host_mnt/c/Users/lukho/Documents/AI_Agents/AI Mathematics/debug-820bf8.log", "debug-820bf8.log"):
-        try:
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(line)
-        except Exception:
-            pass
-    body = _json.dumps(payload, default=str).encode()
-    for url in ("http://host.docker.internal:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3", "http://127.0.0.1:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3"):
-        try:
-            urllib.request.urlopen(urllib.request.Request(url, data=body, headers={"Content-Type":"application/json","X-Debug-Session-Id":"820bf8"}, method="POST"), timeout=1)
-        except Exception:
-            pass
-# #endregion
-
 # Safe symbols for expression parsing (no arbitrary Python eval).
 _SAFE_LOCALS: dict[str, Any] = {
     "x": sp.symbols("x"),
@@ -414,7 +395,6 @@ def sanitize_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Normalize scene specs so MathViz can render without guessing."""
     raw_scenes = list(scenes or [])
     out: list[dict[str, Any]] = []
-    algebra_dbg: list[dict[str, Any]] = []
     for i, raw in enumerate(raw_scenes):
         scene = copy.deepcopy(raw)
         scene["order_index"] = int(scene.get("order_index", i))
@@ -490,14 +470,6 @@ def sanitize_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     viz["draw"] = _sanitize_draw(
                         draw, fallback_kind="algebra_steps", scene=scene, viz=viz
                     )
-                algebra_dbg.append({
-                    "scene_id": scene.get("scene_id"),
-                    "raw_expr_type": type(raw_expr).__name__,
-                    "raw_expr": str(raw_expr)[:120] if raw_expr is not None else None,
-                    "recovered": (recovered or "")[:120],
-                    "steps_n": len(viz.get("steps") or []),
-                    "viz_type_after": viz_type,
-                })
             if viz_type != "algebra_steps" and viz_type in _DRAWABLE_TYPES:
                 sanitized = _sanitize_draw(
                     draw or {},
@@ -523,10 +495,6 @@ def sanitize_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         viz.pop("draw", None)
 
         out.append(scene)
-    # #region agent log
-    if algebra_dbg:
-        _agent_log("B", "understanding.py:sanitize_scenes", "algebra_sanitize", {"outcomes": algebra_dbg})
-    # #endregion
     return out
 
 

@@ -400,39 +400,10 @@ def generate_video(self, project_id: str) -> dict[str, Any]:
                         },
                     }
                 )
-        # #region agent log
-        def _plog(hid, loc, msg, data):
-            import json as _json, time as _time, urllib.request as _ur
-            p = {"sessionId":"820bf8","hypothesisId":hid,"location":loc,"message":msg,"data":data,"timestamp":int(_time.time()*1000),"runId":"pre-fix"}
-            line = _json.dumps(p, default=str) + "\n"
-            for path in ("/app/debug-820bf8.log",):
-                try:
-                    with open(path, "a", encoding="utf-8") as _f:
-                        _f.write(line)
-                except Exception:
-                    pass
-            try:
-                _ur.urlopen(_ur.Request("http://host.docker.internal:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3", data=_json.dumps(p, default=str).encode(), headers={"Content-Type":"application/json","X-Debug-Session-Id":"820bf8"}, method="POST"), timeout=1)
-            except Exception:
-                pass
-        _raw_scenes = []
-        for s in scenes_data or []:
-            viz = s.get("visualization") if isinstance(s.get("visualization"), dict) else {}
-            _raw_scenes.append({"scene_id": s.get("scene_id"), "scene_type": s.get("scene_type"), "viz_type": viz.get("type"), "expr_type": type(viz.get("math_expression")).__name__, "expr": str(viz.get("math_expression"))[:120], "steps_n": len(viz.get("steps") or []) if isinstance(viz.get("steps"), list) else 0, "viz_keys": list(viz.keys())[:12]})
-        _plog("D", "pipeline.py:pre_sanitize", "raw_scenes", {"project_id": str(project.id), "scenes": _raw_scenes})
-        # #endregion
         scenes_data = sanitize_scenes(scenes_data)
 
         # Math QC on algebra scenes BEFORE rendering
         math_check = qc.validate_scenes_math(scenes_data)
-        # #region agent log
-        _alg = []
-        for s in scenes_data or []:
-            viz = s.get("visualization") if isinstance(s.get("visualization"), dict) else {}
-            if (viz.get("type") or s.get("scene_type")) == "algebra_steps":
-                _alg.append({"scene_id": s.get("scene_id"), "scene_type": s.get("scene_type"), "viz_type": viz.get("type"), "expr": str(viz.get("math_expression") or "")[:120], "steps_n": len(viz.get("steps") or [])})
-        _plog("A", "pipeline.py:post_qc", "qc_result", {"ok": math_check.ok, "messages": (math_check.messages or [])[:10], "algebra": _alg})
-        # #endregion
         if not math_check.ok:
             raise RuntimeError(
                 "Mathematical validation failed: " + "; ".join(math_check.messages)

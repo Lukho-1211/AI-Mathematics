@@ -33,9 +33,6 @@ export default function ProjectPage() {
       setProject(data);
       setEdits(Object.fromEntries(data.expressions.map((e) => [e.id, { ...e }])));
       setError(null);
-      // #region agent log
-      fetch('http://127.0.0.1:7683/ingest/316316a4-ae3a-49bc-a2dc-be48ea7d8ef3',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'820bf8'},body:JSON.stringify({sessionId:'820bf8',hypothesisId:'E',location:'page.tsx:load',message:'project loaded',data:{status:data.status,ocr_reviewed:data.ocr_reviewed,error_message:data.error_message,generateVisible:Boolean(data.ocr_reviewed && (data.status==='OCR_COMPLETE' || data.status==='AWAITING_REVIEW' || data.status==='FAILED'))},timestamp:Date.now(),runId:'post-fix'})}).catch(()=>{});
-      // #endregion
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load project");
     }
