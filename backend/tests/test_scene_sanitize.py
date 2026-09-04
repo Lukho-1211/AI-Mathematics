@@ -113,6 +113,23 @@ def test_sanitize_keeps_algebra_steps():
     assert scenes[0]["visualization"]["steps"]
 
 
+def test_sanitize_backfills_algebra_expression_from_steps():
+    scenes = sanitize_scenes(
+        [
+            {
+                "scene_id": "scene_04",
+                "title": "Worked example",
+                "scene_type": "algebra_steps",
+                "visualization": {
+                    "type": "algebra_steps",
+                    "steps": ["T_n = a + (n-1)d", "a = 5 and d = 7"],
+                },
+            }
+        ]
+    )
+    assert scenes[0]["visualization"]["math_expression"] == "T_n = a + (n-1)d"
+
+
 def test_sanitize_number_line_from_roots():
     scenes = sanitize_scenes(
         [

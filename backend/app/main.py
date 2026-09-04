@@ -13,11 +13,43 @@ from app.models import User
 from app.services.storage import get_storage
 
 
+def _ensure_job_stage_enum() -> None:
+    """create_all will not add values to an existing Postgres enum."""
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_type WHERE typname = 'job_stage'
+                    ) AND NOT EXISTS (
+                        SELECT 1
+                        FROM pg_enum e
+                        JOIN pg_type t ON e.enumtypid = t.oid
+                        WHERE t.typname = 'job_stage' AND e.enumlabel = 'SCENES'
+                    ) THEN
+                        ALTER TYPE job_stage ADD VALUE 'SCENES';
+                    END IF;
+                END
+                $$;
+                """
+            )
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
     # Create tables (Alembic also available; create_all keeps MVP bootstrapping simple)
     Base.metadata.create_all(bind=engine)
+    try:
+        _ensure_job_stage_enum()
+    except Exception:
+        # Non-Postgres or permissions — ignore; Alembic migration covers production.
+        pass
     settings = get_settings()
     db = SessionLocal()
     try:

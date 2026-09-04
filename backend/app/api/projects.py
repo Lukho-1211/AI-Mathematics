@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
@@ -12,7 +11,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models import (
     JobStage,
-    JobStatus,
     GenerationJob,
     Project,
     ProjectStatus,
@@ -34,6 +32,10 @@ from app.schemas import (
     UploadedPageOut,
 )
 from app.services.storage import get_storage
+from app.services.generation_jobs import (
+    ensure_generation_jobs,
+    latest_jobs_by_stage,
+)
 from app.core.config import get_settings
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -131,7 +133,7 @@ def serialize_project(db: Session, project: Project) -> ProjectDetail:
         lesson_plan=lesson,
         script=script,
         scenes=scenes_out,
-        jobs=[JobOut.model_validate(j) for j in project.jobs],
+        jobs=[JobOut.model_validate(j) for j in latest_jobs_by_stage(list(project.jobs))],
         videos=videos,
         subtitles=subs,
         ocr_reviewed=ocr_reviewed,
@@ -247,29 +249,13 @@ def generate(project_id: UUID, payload: GenerateRequest, db: Session = Depends(g
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
 
-    # Seed jobs
-    for stage in (
-        JobStage.UNDERSTANDING,
-        JobStage.SCRIPT,
-        JobStage.SCENES,
-        JobStage.VOICE,
-        JobStage.MATHVIZ,
-        JobStage.RENDER,
-        JobStage.FINALIZE,
-    ):
-        db.add(
-            GenerationJob(
-                project_id=project.id,
-                stage=stage,
-                status=JobStatus.PENDING,
-                progress_percent=0,
-            )
-        )
+    ensure_generation_jobs(db, project)
     project.status = ProjectStatus.ANALYZING
     project.progress_percent = 16
     project.progress_stage = "UNDERSTANDING"
     project.error_message = None
     db.commit()
+    db.refresh(project)
 
     from app.workers.pipeline import generate_video
 

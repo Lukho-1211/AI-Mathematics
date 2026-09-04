@@ -7,7 +7,7 @@ import json
 from typing import AsyncGenerator
 from uuid import UUID
 
-import redis
+import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -22,38 +22,49 @@ from app.services.storage import get_storage
 router = APIRouter(tags=["progress", "video"])
 
 
+def _terminal_status(payload: str | None) -> bool:
+    if not payload:
+        return False
+    try:
+        status = json.loads(payload).get("status")
+    except Exception:
+        return False
+    return status in ("COMPLETED", "FAILED")
+
+
 @router.get("/api/progress/{project_id}")
 async def progress_sse(project_id: UUID) -> EventSourceResponse:
     settings = get_settings()
 
     async def event_generator() -> AsyncGenerator[dict, None]:
-        r = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+        r = redis.from_url(settings.redis_url, decode_responses=True)
         pubsub = r.pubsub()
         channel = progress_channel(project_id)
-        pubsub.subscribe(channel)
-        # Send latest snapshot immediately
-        latest = r.get(f"project:{project_id}:progress:latest")
+        await pubsub.subscribe(channel)
+        latest = await r.get(f"project:{project_id}:progress:latest")
         if latest:
             yield {"event": "progress", "data": latest}
+            if _terminal_status(latest):
+                await pubsub.unsubscribe(channel)
+                await pubsub.aclose()
+                await r.aclose()
+                return
         try:
-            while True:
-                message = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if message and message.get("type") == "message":
-                    data = message["data"]
-                    yield {"event": "progress", "data": data}
-                    try:
-                        parsed = json.loads(data)
-                        status = parsed.get("status")
-                        if status in ("COMPLETED", "FAILED"):
-                            await asyncio.sleep(0.5)
-                            break
-                    except Exception:
-                        pass
-                await asyncio.sleep(0.25)
+            async for message in pubsub.listen():
+                if message.get("type") != "message":
+                    continue
+                data = message.get("data")
+                if not data:
+                    continue
+                yield {"event": "progress", "data": data}
+                payload = data if isinstance(data, str) else json.dumps(data)
+                if _terminal_status(payload):
+                    await asyncio.sleep(0.5)
+                    break
         finally:
-            pubsub.unsubscribe(channel)
-            pubsub.close()
-            r.close()
+            await pubsub.unsubscribe(channel)
+            await pubsub.aclose()
+            await r.aclose()
 
     return EventSourceResponse(event_generator())
 

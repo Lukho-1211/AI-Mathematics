@@ -1,22 +1,7 @@
 "use client";
 
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
-
-const STEPS = [
-  { key: "UPLOAD", label: "Uploading" },
-  { key: "OCR", label: "Reading textbook" },
-  { key: "REVIEW", label: "Human verification" },
-  { key: "UNDERSTANDING", label: "Understanding mathematics" },
-  { key: "SCRIPT", label: "Creating explanation" },
-  { key: "SCENES", label: "Creating scene specs" },
-  { key: "VOICE", label: "Generating narration" },
-  { key: "MATHVIZ", label: "Creating MathVizAI scenes" },
-  { key: "RENDER", label: "Rendering video" },
-  { key: "FINALIZE", label: "Finalizing" },
-  { key: "COMPLETED", label: "Complete" },
-];
-
-const ORDER = STEPS.map((s) => s.key);
+import { PROGRESS_STEPS, resolveStepStates } from "@/lib/progressChecklist";
 
 export function ProgressChecklist({
   stage,
@@ -27,10 +12,16 @@ export function ProgressChecklist({
   stage?: string | null;
   percent: number;
   status: string;
-  jobs: Array<{ stage: string; status: string; progress_percent: number; message?: string | null }>;
+  jobs: Array<{
+    stage: string;
+    status: string;
+    progress_percent: number;
+    message?: string | null;
+    created_at?: string | null;
+  }>;
 }) {
-  const currentIdx = Math.max(0, ORDER.indexOf((stage || "UPLOAD").toUpperCase()));
   const failed = status === "FAILED";
+  const resolved = resolveStepStates({ stage, status, jobs });
 
   return (
     <div className="panel space-y-3 p-5">
@@ -45,15 +36,11 @@ export function ProgressChecklist({
         />
       </div>
       <ul className="space-y-2">
-        {STEPS.map((step, idx) => {
-          const job = jobs.find((j) => j.stage === step.key);
-          let state: "done" | "active" | "pending" | "failed" = "pending";
-          if (failed && idx === currentIdx) state = "failed";
-          else if (status === "COMPLETED" || idx < currentIdx) state = "done";
-          else if (idx === currentIdx) state = "active";
-          if (job?.status === "COMPLETED") state = "done";
-          if (job?.status === "FAILED") state = "failed";
-          if (job?.status === "RUNNING") state = "active";
+        {PROGRESS_STEPS.map((step) => {
+          const { state, job } = resolved.find((r) => r.key === step.key) || {
+            state: "pending" as const,
+            job: undefined,
+          };
 
           const Icon =
             state === "done"

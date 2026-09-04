@@ -16,6 +16,7 @@ from sympy.parsing.sympy_parser import (
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.services.quality import _debug_agent_log
 
 logger = get_logger(__name__)
 
@@ -324,6 +325,24 @@ PAGE CONTENT:
             s["order_index"] = s.get("order_index", i)
             if "visualization" not in s:
                 s["visualization"] = {"type": "none"}
+        # #region agent log
+        _raw = []
+        for s in scenes:
+            viz = s.get("visualization") if isinstance(s.get("visualization"), dict) else {}
+            _raw.append(
+                {
+                    "scene_id": s.get("scene_id"),
+                    "scene_type": s.get("scene_type"),
+                    "viz_type": viz.get("type"),
+                    "viz_keys": list(viz.keys())[:16],
+                    "expr_type": type(viz.get("math_expression")).__name__,
+                    "expr": str(viz.get("math_expression"))[:160] if viz.get("math_expression") is not None else None,
+                    "steps_n": len(viz.get("steps") or []) if isinstance(viz.get("steps"), list) else 0,
+                    "scene_expr": str(s.get("math_expression"))[:80] if s.get("math_expression") is not None else None,
+                }
+            )
+        _debug_agent_log("A", "understanding.py:SceneSpecService.generate", "raw_llm_scenes", {"count": len(scenes), "scenes": _raw})
+        # #endregion
         return sanitize_scenes(scenes)
 
 
@@ -377,6 +396,10 @@ def sanitize_scenes(scenes: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         if viz_type in _DRAWABLE_TYPES:
             if viz_type == "algebra_steps":
+                viz["steps"] = _coerce_steps(viz.get("steps"))
+                recovered = _algebra_expression_from_viz(viz)
+                if recovered:
+                    viz["math_expression"] = recovered
                 # Algebra keeps steps; optional draw is fine but not required
                 if draw:
                     viz["draw"] = _sanitize_draw(draw, fallback_kind="algebra_steps", scene=scene, viz=viz)
@@ -460,6 +483,34 @@ def _infer_drawable_kind(scene: dict[str, Any], viz: dict[str, Any]) -> Optional
     if viz.get("math_expression") and _looks_like_function(str(viz.get("math_expression"))):
         return "graph_2d"
     return None
+
+
+def _coerce_steps(steps: Any) -> list[str]:
+    if isinstance(steps, str) and steps.strip():
+        return [steps.strip()]
+    if not isinstance(steps, list):
+        return []
+    out: list[str] = []
+    for item in steps:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip())
+        elif item is not None and item != "":
+            out.append(str(item))
+    return out
+
+
+def _algebra_expression_from_viz(viz: dict[str, Any]) -> str:
+    expr = viz.get("math_expression")
+    if isinstance(expr, str) and expr.strip():
+        return expr.strip()
+    if isinstance(expr, list):
+        for item in expr:
+            if isinstance(item, str) and item.strip():
+                return item.strip()
+    for step in viz.get("steps") or []:
+        if isinstance(step, str) and step.strip():
+            return step.strip()
+    return ""
 
 
 def _looks_like_function(expr: str) -> bool:

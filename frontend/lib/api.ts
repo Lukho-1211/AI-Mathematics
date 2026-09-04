@@ -91,6 +91,7 @@ export interface ProjectDetail {
     progress_percent: number;
     message?: string | null;
     error_message?: string | null;
+    created_at?: string | null;
   }>;
   videos: Array<{
     id: string;

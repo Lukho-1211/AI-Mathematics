@@ -32,7 +32,7 @@ from app.models import (
 from app.services.ocr import OCRService
 from app.services.progress import get_progress_publisher
 from app.services.providers.mathviz_ai import MathVizService
-from app.services.quality import QualityControlService
+from app.services.quality import QualityControlService, _debug_agent_log
 from app.services.storage import get_storage
 from app.services.understanding import (
     LessonPlanService,
@@ -377,13 +377,22 @@ def generate_video(self, project_id: str) -> dict[str, Any]:
         db.add(scr)
         db.commit()
         _set_job(db, project.id, JobStage.SCRIPT, JobStatus.COMPLETED, 100)
-        _update_project(db, project, status=ProjectStatus.SCRIPT_GENERATED, percent=42, stage="SCENES")
 
         # --- Scene specs ---
+        # Mark SCENES running before publishing so SSE reload sees RUNNING, not PENDING.
         _set_job(db, project.id, JobStage.SCENES, JobStatus.RUNNING, 30, "Creating scene specifications")
+        _update_project(
+            db,
+            project,
+            status=ProjectStatus.SCRIPT_GENERATED,
+            percent=42,
+            stage="SCENES",
+        )
         scenes_data = SceneSpecService().generate(script_data, lesson, page_content)
+        used_fallback = False
         if not scenes_data:
             # Fallback from script segments
+            used_fallback = True
             scenes_data = []
             for i, seg in enumerate(script_data.get("segments") or []):
                 scenes_data.append(
@@ -400,10 +409,56 @@ def generate_video(self, project_id: str) -> dict[str, Any]:
                         },
                     }
                 )
+        # #region agent log
+        _pre = []
+        for s in scenes_data or []:
+            viz = s.get("visualization") if isinstance(s.get("visualization"), dict) else {}
+            _pre.append(
+                {
+                    "scene_id": s.get("scene_id"),
+                    "scene_type": s.get("scene_type"),
+                    "viz_type": viz.get("type"),
+                    "expr_type": type(viz.get("math_expression")).__name__,
+                    "expr": str(viz.get("math_expression"))[:160] if viz.get("math_expression") is not None else None,
+                    "steps_n": len(viz.get("steps") or []) if isinstance(viz.get("steps"), list) else 0,
+                    "viz_keys": list(viz.keys())[:16],
+                }
+            )
+        _page_exprs = [
+            {"id": e.get("id"), "latex": str(e.get("latex") or "")[:120], "text": str(e.get("original_text") or "")[:80]}
+            for e in (page_content.get("elements") or [])[:12]
+        ]
+        _debug_agent_log(
+            "C",
+            "pipeline.py:pre_sanitize",
+            "scenes_before_second_sanitize",
+            {"project_id": str(project.id), "used_fallback": used_fallback, "scenes": _pre, "page_exprs": _page_exprs},
+        )
+        # #endregion
         scenes_data = sanitize_scenes(scenes_data)
 
         # Math QC on algebra scenes BEFORE rendering
         math_check = qc.validate_scenes_math(scenes_data)
+        # #region agent log
+        _alg = []
+        for s in scenes_data or []:
+            viz = s.get("visualization") if isinstance(s.get("visualization"), dict) else {}
+            if (viz.get("type") or s.get("scene_type")) == "algebra_steps":
+                _alg.append(
+                    {
+                        "scene_id": s.get("scene_id"),
+                        "viz_type": viz.get("type"),
+                        "expr": str(viz.get("math_expression") or "")[:160],
+                        "steps_n": len(viz.get("steps") or []),
+                    }
+                )
+        _debug_agent_log(
+            "E",
+            "pipeline.py:post_qc",
+            "qc_result",
+            {"ok": math_check.ok, "messages": (math_check.messages or [])[:8], "algebra": _alg},
+        )
+        # #endregion
         if not math_check.ok:
             raise RuntimeError(
                 "Mathematical validation failed: " + "; ".join(math_check.messages)
@@ -434,6 +489,7 @@ def generate_video(self, project_id: str) -> dict[str, Any]:
             "application/json",
         )
         _set_job(db, project.id, JobStage.SCENES, JobStatus.COMPLETED, 100)
+        _update_project(db, project, percent=50, stage="SCENES")
 
         # --- Voice (narration first) ---
         _set_job(db, project.id, JobStage.VOICE, JobStatus.RUNNING, 10, "Generating narration")

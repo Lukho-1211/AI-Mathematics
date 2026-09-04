@@ -91,6 +91,7 @@ class JobOut(BaseModel):
     progress_percent: int
     message: Optional[str] = None
     error_message: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
